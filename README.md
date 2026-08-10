@@ -2,6 +2,7 @@
 
 Headless localhost print agent for Farmora cashier PCs. The Farmora frontend talks to this app over `http://127.0.0.1` to configure printers and silently print invoices.
 
+**On-site install & setup (for field developers):** [docs/ON-SITE-SETUP.md](./docs/ON-SITE-SETUP.md)  
 **Frontend integration spec:** [docs/FRONTEND.md](./docs/FRONTEND.md)  
 **Backend print PDF / ESC-POS spec (for farmora-backend agents):** [docs/BACKEND-PRINT.md](./docs/BACKEND-PRINT.md)
 
