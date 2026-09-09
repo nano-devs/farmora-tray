@@ -2,64 +2,121 @@ using FarmoraTray.Apis;
 using FarmoraTray.Services;
 using Scalar.AspNetCore;
 
-var configStore = new ConfigStore();
-configStore.LoadOrCreate();
+namespace FarmoraTray;
 
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddOpenApi();
-
-builder.WebHost.UseUrls($"http://127.0.0.1:{configStore.Current.Port}");
-
-builder.Services.AddSingleton(configStore);
-builder.Services.AddSingleton<PrinterDiscovery>();
-builder.Services.AddSingleton<PdfPrintService>();
-builder.Services.AddSingleton<RawPrintService>();
-builder.Services.AddSingleton<PrintOrchestrator>();
-builder.Services.AddProblemDetails();
-
-builder.Services.AddCors(options =>
+internal static class Program
 {
-    options.AddPolicy("frontend", policy =>
+    [STAThread]
+    private static void Main(string[] args)
     {
-        policy.SetIsOriginAllowed(origin => configStore.IsOriginAllowed(origin))
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
-builder.Services.AddHealthChecks();
+        try
+        {
+            Run(args);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Farmora Tray could not start.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "Farmora Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
 
-var app = builder.Build();
+    private static void Run(string[] args)
+    {
+        using var mutex = new Mutex(true, @"Local\FarmoraTray", out var createdNew);
+        if (!createdNew)
+        {
+            MessageBox.Show(
+                "Farmora Tray is already running. Look for the icon in the system tray.",
+                "Farmora Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
 
-if (configStore.ApiKeyWasGenerated)
-{
-    app.Logger.LogWarning(
-        "Farmora Tray API key generated. Copy this key into the Farmora frontend printer settings for this PC:{NewLine}{ApiKey}{NewLine}Config file: {ConfigPath}",
-        Environment.NewLine,
-        configStore.Current.ApiKey,
-        Environment.NewLine,
-        configStore.ConfigPath);
+        var configStore = new ConfigStore();
+        configStore.LoadOrCreate();
+
+        var builder = WebApplication.CreateBuilder(args);
+
+        builder.Services.AddOpenApi();
+
+        builder.WebHost.UseUrls($"http://127.0.0.1:{configStore.Current.Port}");
+
+        builder.Services.AddSingleton(configStore);
+        builder.Services.AddSingleton<PrinterDiscovery>();
+        builder.Services.AddSingleton<PdfPrintService>();
+        builder.Services.AddSingleton<RawPrintService>();
+        builder.Services.AddSingleton<PrintOrchestrator>();
+        builder.Services.AddProblemDetails();
+
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("frontend", policy =>
+            {
+                policy.SetIsOriginAllowed(origin => configStore.IsOriginAllowed(origin))
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            });
+        });
+
+        builder.Services.AddHealthChecks();
+
+        var app = builder.Build();
+
+        if (configStore.ApiKeyWasGenerated)
+        {
+            app.Logger.LogInformation(
+                "Farmora Tray API key generated. Use Copy API key on the tray menu. Config file: {ConfigPath}",
+                configStore.ConfigPath);
+        }
+        else
+        {
+            app.Logger.LogInformation(
+                "Farmora Tray listening on http://127.0.0.1:{Port}. Config: {ConfigPath}",
+                configStore.Current.Port,
+                configStore.ConfigPath);
+        }
+
+        app.MapOpenApi();
+        app.MapScalarApiReference(options => options.Servers = []);
+
+        app.UseCors("frontend");
+        // app.UseMiddleware<ApiKeyMiddleware>();
+
+        app.MapHealthApi();
+        app.MapPrintersApi();
+        app.MapConfigApi();
+        app.MapPrintApi();
+
+        app.MapHealthChecks("/health2");
+
+        try
+        {
+            app.StartAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Could not listen on http://127.0.0.1:{configStore.Current.Port}.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "Farmora Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            app.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            return;
+        }
+
+        using (var tray = new TrayApplicationContext(app, configStore))
+        {
+            Application.Run(tray);
+        }
+
+        app.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
 }
-else
-{
-    app.Logger.LogInformation(
-        "Farmora Tray listening on http://127.0.0.1:{Port}. Config: {ConfigPath}",
-        configStore.Current.Port,
-        configStore.ConfigPath);
-}
-
-app.MapOpenApi();
-app.MapScalarApiReference(options => options.Servers = []);
-
-app.UseCors("frontend");
-// app.UseMiddleware<ApiKeyMiddleware>();
-
-app.MapHealthApi();
-app.MapPrintersApi();
-app.MapConfigApi();
-app.MapPrintApi();
-
-app.MapHealthChecks("/health2");
-
-app.Run();

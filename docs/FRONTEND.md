@@ -82,7 +82,7 @@ Do **not** block the whole POS if tray is offline; show a banner and skip auto-p
 ### 3.2 One-time setup (per PC)
 
 1. Install / start Farmora Tray on the PC.  
-2. Copy API key from tray console log (first run) into FE settings.  
+2. Copy API key from the tray menu (**Copy API key**) into FE settings.  
 3. Open **Printer settings** in Farmora FE.  
 4. Load printers + current config.  
 5. User selects:

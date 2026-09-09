@@ -10,32 +10,40 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 
 ### Bring / prepare
 
-- [ ] Latest **self-contained** build zip, e.g. `FarmoraTray-x.y.z-win-x64.zip`
+- [ ] Latest **self-contained** zips: `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`
 - [ ] USB stick or access to a network share
 - [ ] Farmora frontend URL for that site (production / staging)
 - [ ] Admin login for Farmora (to open printer settings after FE is ready)
 - [ ] This checklist (printed or on phone)
 - [ ] Sample test PDF (optional) and knowing which PC has which printers
 
-### Build the zip (on your laptop, before travel)
+### Build the zips (on your laptop, before travel)
 
 ```powershell
 cd <repo>\src\FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
-Compress-Archive -Path .\publish\win-x64\* -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
+dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
+Compress-Archive -Path .\publish\win-x64\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
+Compress-Archive -Path .\publish\win-x86\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x86.zip -Force
 ```
 
-Self-contained = PC does **not** need .NET installed.
+Release publish is a compressed self-contained single file per RID. Each output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for each RID. The PC does **not** need .NET installed.
 
-### Confirm PC requirements
+To publish a folder of assemblies instead (debug), use Debug or pass `/p:PublishSingleFile=false`.
+
+### PC and operating system requirements
 
 | Requirement | Notes |
 |-------------|--------|
-| OS | Windows 10/11 **64-bit** |
-| Printers | Installed in Windows with working drivers (test a Windows test page) |
-| User | Cashier Windows account that will use Farmora in the browser |
-| Browser | Chrome / Edge (same one staff will use daily) |
-| Network | PC can open Farmora web app; tray itself only uses localhost |
+| OS | Windows 10 or 11, **64-bit or 32-bit**. Not Windows 7. |
+| Arch | x64 or x86. Match the zip to **System type**. This build does not support ARM. |
+| .NET | Not required on the PC when you use the self-contained publish above. |
+| Printers | Installed in Windows with working drivers. Print a Windows test page first. |
+| User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
+| Browser | Chrome / Edge. Use the same browser staff use daily. |
+| Network | The PC can open the Farmora web app. The tray itself only uses localhost. |
+| Disk and memory | Light. Leave a small amount of free disk for the single-file exe plus config under `%LocalAppData%\FarmoraTray`. |
+| Auto-start | Startup folder or Task Scheduler at that user's logon. Not a Windows Service. |
 
 Typical printers per PC:
 
@@ -48,9 +56,11 @@ Typical printers per PC:
 
 Do this **once per client PC**.
 
-### 2.1 Copy files
+### 2.1 Pick the zip and copy files
 
-1. Create folder:
+1. On the PC, open **Settings → System → About** and read **System type**.
+2. Use `FarmoraTray-win-x64.zip` on 64-bit Windows. Use `FarmoraTray-win-x86.zip` on 32-bit Windows. Do not install the x86 build on 64-bit Windows as the default path.
+3. Create folder:
 
    ```text
    C:\Program Files\FarmoraTray
@@ -62,35 +72,23 @@ Do this **once per client PC**.
    C:\FarmoraTray
    ```
 
-2. Unzip the publish build into that folder. You should see `FarmoraTray.exe` among other files.
+4. Unzip the matching zip into that folder. You should see `FarmoraTray.exe`. A `.pdb` is optional on site.
 
-3. Do **not** delete or hand-edit files inside the install folder later when updating — replace the whole folder contents with a new zip (config lives elsewhere; see below).
+5. Do **not** delete or hand-edit files inside the install folder later when updating. Replace the folder contents with a new zip. Config lives elsewhere. See below.
 
 ### 2.2 First run (get API key)
 
 1. Double-click `FarmoraTray.exe`.
-2. A console window opens. On **first run** it prints something like:
+2. No console window opens. Look for the Farmora Tray icon in the system tray. Windows may hide it under **Show hidden icons**.
+3. On **first run**, a balloon tip says that an API key was created.
+4. Right-click the icon and choose **Copy API key**.
+5. Paste the key into a note for this PC.
+6. Leave Farmora Tray running. Do not choose **Exit**.
 
-   ```text
-   Farmora Tray API key generated. Copy this key into the Farmora frontend printer settings...
-   <long hex key>
-   Config file: C:\Users\<user>\AppData\Local\FarmoraTray\config.json
-   ```
+If you missed the balloon:
 
-3. **Copy the API key** into a note for this PC (or leave the window open).
-4. Leave the console running for now.
-
-If you closed the window before copying the key:
-
-1. Open:
-
-   ```text
-   %LocalAppData%\FarmoraTray\config.json
-   ```
-
-   (`Win+R` → paste that → Enter)
-
-2. Copy the `"apiKey"` value from the JSON file.
+1. Right-click the tray icon and choose **Copy API key**, or
+2. Right-click the tray icon and choose **Open config folder**, then copy the `"apiKey"` value from `config.json`.
 
 Config path is per Windows user. Prefer setting up under the **same Windows account** the cashier uses.
 
@@ -115,6 +113,8 @@ If this fails: tray not running, or wrong port in `config.json`.
 ## 3. Start Farmora Tray at Windows logon
 
 Cashiers must not have to start it manually every morning.
+
+Do **not** install this tray build as a Windows Service. A service runs in session 0 and cannot show a tray icon. A Windows Service and an installer can come later. For this build, start `FarmoraTray.exe` at user logon only (Task Scheduler or the Startup folder).
 
 ### Recommended: Task Scheduler
 
@@ -267,7 +267,7 @@ Invoke-WebRequest http://127.0.0.1:9123/thermal -Method Post -Headers $headers `
 
 Explain only what they need:
 
-1. **Do not close** the Farmora Tray black window if they see it (or explain it starts at login).
+1. Farmora Tray sits in the system tray. It starts at login. Do not choose **Exit** unless support asks you to.
 2. Always open Farmora in the **same browser profile** where you saved the API key.
 3. If print fails:
    - Check printer power / paper  
@@ -298,7 +298,7 @@ Copy one row per PC:
 ## 9. Updating Farmora Tray later
 
 1. Ask cashier to finish current sale.
-2. Stop tray: close console, or End Task `FarmoraTray.exe`, or stop the scheduled task.
+2. Stop tray: right-click the tray icon and choose **Exit**, or End Task `FarmoraTray.exe`, or stop the scheduled task.
 3. Replace files under `C:\Program Files\FarmoraTray` with the new zip contents.
 4. Start tray again (Run scheduled task or reboot).
 5. **Do not** delete `%LocalAppData%\FarmoraTray\config.json` — API key and printer map stay there.
@@ -310,6 +310,9 @@ Copy one row per PC:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| Tray running but no icon | Task set to run whether user is logged on (session 0) | Recreate the task with **Run only when user is logged on** |
+| No tray icon | Hidden icons, or tray not running | Click **Show hidden icons**, or start `FarmoraTray.exe` / Run the scheduled task |
+| Balloon about port / "already running" | Second instance, or port in use | Use the existing tray icon. If `/health` fails, End Task `FarmoraTray.exe` and start once |
 | `/health` fails | Tray not running | Start exe or Run scheduled task |
 | FE says tray offline | Tray down, or FE opened on another PC | Tray must run on **same** PC as the browser |
 | `401` from tray | Wrong/missing API key in FE | Re-paste key from `config.json` |

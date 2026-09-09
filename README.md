@@ -1,6 +1,6 @@
 # Farmora Tray
 
-Headless localhost print agent for Farmora cashier PCs. The Farmora frontend talks to this app over `http://127.0.0.1` to configure printers and silently print invoices.
+Localhost print agent for Farmora cashier PCs. The Farmora frontend talks to this app over `http://127.0.0.1` to configure printers and silently print invoices. Cashiers run `FarmoraTray.exe` with no console window. A system tray icon shows that the agent is running.
 
 **On-site install & setup (for field developers):** [docs/ON-SITE-SETUP.md](./docs/ON-SITE-SETUP.md)  
 **Frontend integration spec:** [docs/FRONTEND.md](./docs/FRONTEND.md)  
@@ -8,7 +8,7 @@ Headless localhost print agent for Farmora cashier PCs. The Farmora frontend tal
 
 - **Stack:** ASP.NET Core / .NET 10, Windows only
 - **Default URL:** `http://127.0.0.1:9123`
-- **No UI:** setup is done from the Farmora frontend (or `curl`) via config APIs
+- **Tray:** right-click the icon for status, **Copy API key**, **Open config folder**, and **Exit**. Printer mapping stays in the Farmora frontend (or `curl`) via config APIs.
 
 ## Run
 
@@ -17,15 +17,23 @@ cd src/FarmoraTray
 dotnet run
 ```
 
-On first start, Farmora Tray writes `%LocalAppData%\FarmoraTray\config.json` and logs a new API key. Copy that key into the Farmora frontend printer settings for this PC.
+On first start, Farmora Tray writes `%LocalAppData%\FarmoraTray\config.json` and shows a tray balloon that an API key was created. Right-click the tray icon and choose **Copy API key**. Paste that key into the Farmora frontend printer settings for this PC.
 
-Example log line:
+Keep Farmora Tray running while cashiers use Farmora. For production PCs, start `FarmoraTray.exe` at user logon with Task Scheduler or the Startup folder. Do not install this tray build as a Windows Service. Session 0 has no tray icon. A Windows Service and an installer can come later.
 
-```text
-Farmora Tray API key generated. Copy this key into the Farmora frontend printer settings...
+### Publish (self-contained win-x64 and win-x86)
+
+```powershell
+cd src/FarmoraTray
+dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
+dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
 ```
 
-Keep the process running while cashiers use Farmora. For production PCs, start it at login (Task Scheduler / Startup folder). A Windows Service installer can come later.
+Release publish uses the csproj single-file defaults. Each RID output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe per RID as `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`. The PC does not need .NET installed.
+
+Use the x64 zip on 64-bit Windows and the x86 zip on 32-bit Windows. Check **Settings → System → About → System type**. Do not install the x86 build on 64-bit Windows as the default path.
+
+To publish a folder of assemblies instead, use Debug or pass `/p:PublishSingleFile=false`.
 
 ## Auth & CORS
 
@@ -203,7 +211,7 @@ async function printDotMatrixPdf(pdfBytes) {
 ## Frontend integration notes
 
 1. Detect tray: `GET /health` (no key).
-2. Store API key per PC in `localStorage` (paste once from first-run log / support sheet).
+2. Store API key per PC in `localStorage` (paste once from **Copy API key** / support sheet).
 3. Settings page: `GET /printers` → two dropdowns (dot matrix / thermal) → `PUT /config` (include `allowedOrigin`).
 4. After sale/purchase success: generate PDF or ESC/POS in Farmora backend/frontend, then `POST /dotmatrix` or `POST /thermal`.
 
@@ -213,8 +221,8 @@ PDF jobs use the Windows **printto** shell verb (Edge / Acrobat / whatever is re
 
 ## Smoke test
 
-1. `dotnet run` in `src/FarmoraTray`
-2. Copy API key from the console
+1. `dotnet run` in `src/FarmoraTray` (or start `FarmoraTray.exe`)
+2. Copy the API key from the tray menu (**Copy API key**)
 3. `GET /printers` and `PUT /config` mapping `dotMatrix` / `thermal`
 4. `POST /dotmatrix` with a small PDF — e.g. **Microsoft Print to PDF**
 5. When a thermal printer is available, `POST /thermal` with ESC/POS bytes
