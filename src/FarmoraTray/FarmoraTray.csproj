@@ -1,13 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RuntimeIdentifiers>win-x64;</RuntimeIdentifiers>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>1.0.0</Version>
     <AssemblyName>FarmoraTray</AssemblyName>
     <RootNamespace>FarmoraTray</RootNamespace>
+    <ApplicationIcon>FarmoraTray.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
