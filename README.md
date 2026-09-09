@@ -21,14 +21,17 @@ On first start, Farmora Tray writes `%LocalAppData%\FarmoraTray\config.json` and
 
 Keep Farmora Tray running while cashiers use Farmora. For production PCs, start `FarmoraTray.exe` at user logon with Task Scheduler or the Startup folder. Do not install this tray build as a Windows Service. Session 0 has no tray icon. A Windows Service and an installer can come later.
 
-### Publish (self-contained win-x64)
+### Publish (self-contained win-x64 and win-x86)
 
 ```powershell
 cd src/FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
+dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
 ```
 
-Release publish uses the csproj single-file defaults. The output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for on-site installs. The PC does not need .NET installed.
+Release publish uses the csproj single-file defaults. Each RID output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe per RID as `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`. The PC does not need .NET installed.
+
+Use the x64 zip on 64-bit Windows and the x86 zip on 32-bit Windows. Check **Settings → System → About → System type**. Do not install the x86 build on 64-bit Windows as the default path.
 
 To publish a folder of assemblies instead, use Debug or pass `/p:PublishSingleFile=false`.
 

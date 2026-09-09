@@ -10,22 +10,24 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 
 ### Bring / prepare
 
-- [ ] Latest **self-contained** build zip, e.g. `FarmoraTray-x.y.z-win-x64.zip`
+- [ ] Latest **self-contained** zips: `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`
 - [ ] USB stick or access to a network share
 - [ ] Farmora frontend URL for that site (production / staging)
 - [ ] Admin login for Farmora (to open printer settings after FE is ready)
 - [ ] This checklist (printed or on phone)
 - [ ] Sample test PDF (optional) and knowing which PC has which printers
 
-### Build the zip (on your laptop, before travel)
+### Build the zips (on your laptop, before travel)
 
 ```powershell
 cd <repo>\src\FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
+dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
 Compress-Archive -Path .\publish\win-x64\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
+Compress-Archive -Path .\publish\win-x86\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x86.zip -Force
 ```
 
-Release publish is a compressed self-contained single file. The output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for on-site. The PC does **not** need .NET installed.
+Release publish is a compressed self-contained single file per RID. Each output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for each RID. The PC does **not** need .NET installed.
 
 To publish a folder of assemblies instead (debug), use Debug or pass `/p:PublishSingleFile=false`.
 
@@ -33,8 +35,8 @@ To publish a folder of assemblies instead (debug), use Debug or pass `/p:Publish
 
 | Requirement | Notes |
 |-------------|--------|
-| OS | Windows 10/11 **64-bit** only. The publish RID is `win-x64`. |
-| Arch | x64. This build does not support ARM. |
+| OS | Windows 10 or 11, **64-bit or 32-bit**. Not Windows 7. |
+| Arch | x64 or x86. Match the zip to **System type**. This build does not support ARM. |
 | .NET | Not required on the PC when you use the self-contained publish above. |
 | Printers | Installed in Windows with working drivers. Print a Windows test page first. |
 | User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
@@ -54,9 +56,11 @@ Typical printers per PC:
 
 Do this **once per client PC**.
 
-### 2.1 Copy files
+### 2.1 Pick the zip and copy files
 
-1. Create folder:
+1. On the PC, open **Settings → System → About** and read **System type**.
+2. Use `FarmoraTray-win-x64.zip` on 64-bit Windows. Use `FarmoraTray-win-x86.zip` on 32-bit Windows. Do not install the x86 build on 64-bit Windows as the default path.
+3. Create folder:
 
    ```text
    C:\Program Files\FarmoraTray
@@ -68,9 +72,9 @@ Do this **once per client PC**.
    C:\FarmoraTray
    ```
 
-2. Unzip the publish build into that folder. You should see `FarmoraTray.exe`. A `.pdb` is optional on site.
+4. Unzip the matching zip into that folder. You should see `FarmoraTray.exe`. A `.pdb` is optional on site.
 
-3. Do **not** delete or hand-edit files inside the install folder later when updating. Replace the folder contents with a new zip. Config lives elsewhere. See below.
+5. Do **not** delete or hand-edit files inside the install folder later when updating. Replace the folder contents with a new zip. Config lives elsewhere. See below.
 
 ### 2.2 First run (get API key)
 
