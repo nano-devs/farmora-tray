@@ -28,7 +28,9 @@ cd src/FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
 ```
 
-The PC does not need .NET installed when you use this command.
+Release publish uses the csproj single-file defaults. The output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for on-site installs. The PC does not need .NET installed.
+
+To publish a folder of assemblies instead, use Debug or pass `/p:PublishSingleFile=false`.
 
 ## Auth & CORS
 

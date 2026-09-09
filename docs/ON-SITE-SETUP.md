@@ -22,20 +22,26 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 ```powershell
 cd <repo>\src\FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
-Compress-Archive -Path .\publish\win-x64\* -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
+Compress-Archive -Path .\publish\win-x64\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
 ```
 
-Self-contained = PC does **not** need .NET installed.
+Release publish is a compressed self-contained single file. The output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for on-site. The PC does **not** need .NET installed.
 
-### Confirm PC requirements
+To publish a folder of assemblies instead (debug), use Debug or pass `/p:PublishSingleFile=false`.
+
+### PC and operating system requirements
 
 | Requirement | Notes |
 |-------------|--------|
-| OS | Windows 10/11 **64-bit** |
-| Printers | Installed in Windows with working drivers (test a Windows test page) |
-| User | Cashier Windows account that will use Farmora in the browser |
-| Browser | Chrome / Edge (same one staff will use daily) |
-| Network | PC can open Farmora web app; tray itself only uses localhost |
+| OS | Windows 10/11 **64-bit** only. The publish RID is `win-x64`. |
+| Arch | x64. This build does not support ARM. |
+| .NET | Not required on the PC when you use the self-contained publish above. |
+| Printers | Installed in Windows with working drivers. Print a Windows test page first. |
+| User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
+| Browser | Chrome / Edge. Use the same browser staff use daily. |
+| Network | The PC can open the Farmora web app. The tray itself only uses localhost. |
+| Disk and memory | Light. Leave a small amount of free disk for the single-file exe plus config under `%LocalAppData%\FarmoraTray`. |
+| Auto-start | Startup folder or Task Scheduler at that user's logon. Not a Windows Service. |
 
 Typical printers per PC:
 
@@ -62,9 +68,9 @@ Do this **once per client PC**.
    C:\FarmoraTray
    ```
 
-2. Unzip the publish build into that folder. You should see `FarmoraTray.exe` among other files.
+2. Unzip the publish build into that folder. You should see `FarmoraTray.exe`. A `.pdb` is optional on site.
 
-3. Do **not** delete or hand-edit files inside the install folder later when updating — replace the whole folder contents with a new zip (config lives elsewhere; see below).
+3. Do **not** delete or hand-edit files inside the install folder later when updating. Replace the folder contents with a new zip. Config lives elsewhere. See below.
 
 ### 2.2 First run (get API key)
 
