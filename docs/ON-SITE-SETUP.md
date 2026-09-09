@@ -69,28 +69,16 @@ Do this **once per client PC**.
 ### 2.2 First run (get API key)
 
 1. Double-click `FarmoraTray.exe`.
-2. A console window opens. On **first run** it prints something like:
+2. No console window opens. Look for the Farmora Tray icon in the system tray. Windows may hide it under **Show hidden icons**.
+3. On **first run**, a balloon tip says that an API key was created.
+4. Right-click the icon and choose **Copy API key**.
+5. Paste the key into a note for this PC.
+6. Leave Farmora Tray running. Do not choose **Exit**.
 
-   ```text
-   Farmora Tray API key generated. Copy this key into the Farmora frontend printer settings...
-   <long hex key>
-   Config file: C:\Users\<user>\AppData\Local\FarmoraTray\config.json
-   ```
+If you missed the balloon:
 
-3. **Copy the API key** into a note for this PC (or leave the window open).
-4. Leave the console running for now.
-
-If you closed the window before copying the key:
-
-1. Open:
-
-   ```text
-   %LocalAppData%\FarmoraTray\config.json
-   ```
-
-   (`Win+R` → paste that → Enter)
-
-2. Copy the `"apiKey"` value from the JSON file.
+1. Right-click the tray icon and choose **Copy API key**, or
+2. Right-click the tray icon and choose **Open config folder**, then copy the `"apiKey"` value from `config.json`.
 
 Config path is per Windows user. Prefer setting up under the **same Windows account** the cashier uses.
 
@@ -115,6 +103,8 @@ If this fails: tray not running, or wrong port in `config.json`.
 ## 3. Start Farmora Tray at Windows logon
 
 Cashiers must not have to start it manually every morning.
+
+Do **not** install this tray build as a Windows Service. A service runs in session 0 and cannot show a tray icon. A Windows Service and an installer can come later. For this build, start `FarmoraTray.exe` at user logon only (Task Scheduler or the Startup folder).
 
 ### Recommended: Task Scheduler
 
@@ -267,7 +257,7 @@ Invoke-WebRequest http://127.0.0.1:9123/thermal -Method Post -Headers $headers `
 
 Explain only what they need:
 
-1. **Do not close** the Farmora Tray black window if they see it (or explain it starts at login).
+1. Farmora Tray sits in the system tray. It starts at login. Do not choose **Exit** unless support asks you to.
 2. Always open Farmora in the **same browser profile** where you saved the API key.
 3. If print fails:
    - Check printer power / paper  
@@ -298,7 +288,7 @@ Copy one row per PC:
 ## 9. Updating Farmora Tray later
 
 1. Ask cashier to finish current sale.
-2. Stop tray: close console, or End Task `FarmoraTray.exe`, or stop the scheduled task.
+2. Stop tray: right-click the tray icon and choose **Exit**, or End Task `FarmoraTray.exe`, or stop the scheduled task.
 3. Replace files under `C:\Program Files\FarmoraTray` with the new zip contents.
 4. Start tray again (Run scheduled task or reboot).
 5. **Do not** delete `%LocalAppData%\FarmoraTray\config.json` — API key and printer map stay there.
@@ -310,6 +300,9 @@ Copy one row per PC:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| Tray running but no icon | Task set to run whether user is logged on (session 0) | Recreate the task with **Run only when user is logged on** |
+| No tray icon | Hidden icons, or tray not running | Click **Show hidden icons**, or start `FarmoraTray.exe` / Run the scheduled task |
+| Balloon about port / "already running" | Second instance, or port in use | Use the existing tray icon. If `/health` fails, End Task `FarmoraTray.exe` and start once |
 | `/health` fails | Tray not running | Start exe or Run scheduled task |
 | FE says tray offline | Tray down, or FE opened on another PC | Tray must run on **same** PC as the browser |
 | `401` from tray | Wrong/missing API key in FE | Re-paste key from `config.json` |
