@@ -239,7 +239,7 @@ Invoke-WebRequest http://127.0.0.1:9123/dotmatrix -Method Post -Headers $headers
   -ContentType "application/pdf" -Body $pdf
 ```
 
-Expect HTTP **204** and output on the matrix printer (or Save dialog if mapped to Microsoft Print to PDF).
+Expect HTTP **204** and output on the matrix printer. **204** means the spooler finished sending the job, not merely that it accepted the queue. An offline, paused, or unreachable printer returns **503** and the queued job is removed. Microsoft Print to PDF only returns **204** if the Save dialog is completed and the job finishes; leaving the dialog open fails the request.
 
 ### 6.3 Thermal path (retail PCs only)
 

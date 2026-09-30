@@ -135,7 +135,7 @@ Thermal accepts either:
 - `Content-Type: application/octet-stream` with raw ESC/POS bytes, or
 - `Content-Type: application/json` with `{ "rawBase64": "..." }`
 
-Success: `204 No Content`
+Success: `204 No Content` only after the spooler finishes sending the job to the printer. A job that is only queued is not success.
 
 Errors:
 
@@ -145,7 +145,7 @@ Errors:
 | `401` | Bad or missing API key |
 | `403` | `Origin` not allowlisted |
 | `404` | Printer not configured or not installed |
-| `503` | Spooler / driver print failure |
+| `503` | Printer not ready (`title`: `Printer not ready`), or the job stayed queued / failed and was removed from the spooler. Other spooler, driver, or PDF-handler failures use `title`: `Print failed`. |
 
 ## Example: configure from PowerShell
 

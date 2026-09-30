@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using FarmoraTray.Printing;
 
 namespace FarmoraTray.Services;
 
@@ -32,6 +33,8 @@ public sealed class PdfPrintService
             throw new PlatformNotSupportedException("Farmora Tray PDF printing requires Windows.");
         }
 
+        SpoolerJobMonitor.EnsureReady(printerName);
+
         var tempDir = Path.Combine(Path.GetTempPath(), "FarmoraTray");
         Directory.CreateDirectory(tempDir);
         var pdfPath = Path.Combine(tempDir, $"{SanitizeFileName(documentName)}-{Guid.NewGuid():N}.pdf");
@@ -40,6 +43,7 @@ public sealed class PdfPrintService
 
         try
         {
+            var existingJobIds = SpoolerJobMonitor.SnapshotJobIds(printerName);
             var startInfo = new ProcessStartInfo
             {
                 FileName = pdfPath,
@@ -54,17 +58,19 @@ public sealed class PdfPrintService
                 ?? throw new InvalidOperationException(
                     "Unable to start the PDF print handler. Ensure a PDF application is installed (e.g. Microsoft Edge).");
 
-            // Most handlers return quickly after spooling; wait a bounded time then orphan-clean.
-            if (!process.WaitForExit(60_000))
+            try
             {
-                try
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-                catch
-                {
-                    // ignored
-                }
+                // Poll the spooler immediately. A fast printer can finish before the handler exits.
+                SpoolerJobMonitor.WaitForShellJob(
+                    printerName,
+                    existingJobIds,
+                    Path.GetFileName(pdfPath),
+                    process);
+            }
+            catch
+            {
+                TryStopHandler(process);
+                throw;
             }
         }
         finally
@@ -85,6 +91,21 @@ public sealed class PdfPrintService
                     // ignored — temp cleaner / reboot will remove later
                 }
             });
+        }
+    }
+
+    private static void TryStopHandler(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // ignored
         }
     }
 

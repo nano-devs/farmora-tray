@@ -7,7 +7,7 @@ namespace FarmoraTray.Printing;
 /// </summary>
 public static class NativeRawPrinter
 {
-    public static void SendBytes(string printerName, byte[] data, string documentName = "Farmora Tray")
+    public static uint SendBytes(string printerName, byte[] data, string documentName = "Farmora Tray")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerName);
         ArgumentNullException.ThrowIfNull(data);
@@ -25,43 +25,62 @@ public static class NativeRawPrinter
                 pDataType = "RAW"
             };
 
-            if (StartDocPrinter(printerHandle, 1, docInfo) == 0)
+            var jobId = StartDocPrinter(printerHandle, 1, docInfo);
+            if (jobId == 0)
             {
                 throw new InvalidOperationException($"StartDocPrinter failed for '{printerName}'.");
             }
 
             try
             {
-                if (!StartPagePrinter(printerHandle))
-                {
-                    throw new InvalidOperationException($"StartPagePrinter failed for '{printerName}'.");
-                }
-
                 try
                 {
-                    var pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
+                    if (!StartPagePrinter(printerHandle))
+                    {
+                        throw new InvalidOperationException($"StartPagePrinter failed for '{printerName}'.");
+                    }
+
                     try
                     {
-                        if (!WritePrinter(printerHandle, pinned.AddrOfPinnedObject(), data.Length, out var written)
-                            || written != data.Length)
+                        var pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
+                        try
                         {
-                            throw new InvalidOperationException(
-                                $"WritePrinter failed for '{printerName}' (wrote {written} of {data.Length} bytes).");
+                            if (!WritePrinter(printerHandle, pinned.AddrOfPinnedObject(), data.Length, out var written)
+                                || written != data.Length)
+                            {
+                                throw new InvalidOperationException(
+                                    $"WritePrinter failed for '{printerName}' (wrote {written} of {data.Length} bytes).");
+                            }
+                        }
+                        finally
+                        {
+                            pinned.Free();
                         }
                     }
                     finally
                     {
-                        pinned.Free();
+                        EndPagePrinter(printerHandle);
                     }
                 }
                 finally
                 {
-                    EndPagePrinter(printerHandle);
+                    EndDocPrinter(printerHandle);
                 }
+
+                return jobId;
             }
-            finally
+            catch
             {
-                EndDocPrinter(printerHandle);
+                try
+                {
+                    NativeSpooler.TryDeleteJob(printerHandle, jobId);
+                }
+                catch
+                {
+                    // Keep the original write failure.
+                }
+
+                throw;
             }
         }
         finally
@@ -90,7 +109,7 @@ public static class NativeRawPrinter
     private static extern bool ClosePrinter(IntPtr hPrinter);
 
     [DllImport("winspool.drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
-    private static extern int StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFOA di);
+    private static extern uint StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFOA di);
 
     [DllImport("winspool.drv", SetLastError = true)]
     private static extern bool EndDocPrinter(IntPtr hPrinter);
