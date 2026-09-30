@@ -213,7 +213,7 @@ Alternative JSON body:
 { "rawBase64": "<base64>" }
 ```
 
-Success: **`204 No Content`**.
+Success: **`204 No Content`** only after the spooler finishes sending the job. A queued job is not success.
 
 ### 3.5 Manual reprint
 
@@ -228,12 +228,12 @@ Do not require the cashier to re-submit the transaction.
 
 | HTTP | Meaning | FE action |
 |------|---------|-----------|
-| `204` | Printed (accepted by tray) | Silent success or brief toast |
+| `204` | Printed (spooler finished sending the job) | Silent success or brief toast |
 | `400` | Bad payload | Bug / bad generator — log + toast |
 | `401` | Bad/missing API key | Open settings, re-enter key |
 | `403` | Origin not allowlisted | `PUT /config` with current `window.location.origin` |
 | `404` | Printer not configured or not installed | Open printer settings |
-| `503` | Print failed (spooler/driver/handler) | Toast + Reprint |
+| `503` | Printer not ready, or print failed. A job that only sat in the queue is removed. Body `title` is `Printer not ready` or `Print failed`. | Toast + Reprint |
 | Network error | Tray not running | Banner: “Farmora Tray offline” |
 
 Example client helper:

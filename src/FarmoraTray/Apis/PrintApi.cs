@@ -86,6 +86,12 @@ public static class PrintApi
         {
             return Results.NotFound(new { title = "Printer not found", detail = ex.Message });
         }
+        catch (PrinterNotReadyException ex)
+        {
+            return Results.Json(
+                new { title = "Printer not ready", detail = ex.Message },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
         catch (Exception ex)
         {
             return Results.Json(

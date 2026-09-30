@@ -18,7 +18,9 @@ public sealed class RawPrintService
             throw new PrinterNotFoundException(printerName);
         }
 
-        NativeRawPrinter.SendBytes(printerName, data, documentName);
+        SpoolerJobMonitor.EnsureReady(printerName);
+        var jobId = NativeRawPrinter.SendBytes(printerName, data, documentName);
+        SpoolerJobMonitor.WaitForRawJob(printerName, jobId);
     }
 }
 
@@ -42,4 +44,18 @@ public sealed class PrinterNotConfiguredException : Exception
     }
 
     public string DocumentKind { get; }
+}
+
+public sealed class PrinterNotReadyException : Exception
+{
+    public PrinterNotReadyException(string printerName, string reason)
+        : base($"Printer '{printerName}' is not ready: {reason}.")
+    {
+        PrinterName = printerName;
+        Reason = reason;
+    }
+
+    public string PrinterName { get; }
+
+    public string Reason { get; }
 }
