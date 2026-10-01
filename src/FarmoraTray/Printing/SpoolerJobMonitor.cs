@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security;
 using FarmoraTray.Services;
 using Microsoft.Win32;
@@ -39,6 +40,7 @@ internal static class SpoolerJobMonitor
             throw new PrinterNotReadyException(printerName, reason);
         }
 
+        ProbeDeviceConnection(printerName, snapshot.PortName);
         ProbeStandardTcpPort(printerName, snapshot.PortName);
     }
 
@@ -354,6 +356,38 @@ internal static class SpoolerJobMonitor
         catch (InvalidOperationException)
         {
             return true;
+        }
+    }
+
+    private static void ProbeDeviceConnection(string printerName, string? portName)
+    {
+        string reason;
+        try
+        {
+            if (PrinterReadiness.IsUsbMonitorPort(portName)
+                && NativeDeviceConnection.TryListUsbPrintPorts() is { } connectedPorts
+                && PrinterReadiness.TryGetUsbPortNotConnectedReason(portName, connectedPorts, out reason))
+            {
+                throw new PrinterNotReadyException(printerName, reason);
+            }
+
+            if (PrinterReadiness.MayBeDirectlyAttachedPort(portName)
+                && PrinterReadiness.TryGetDeviceNotConnectedReason(
+                    printerName,
+                    NativeDeviceConnection.ListDevices(),
+                    out reason))
+            {
+                throw new PrinterNotReadyException(printerName, reason);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException
+                                       or IOException
+                                       or UnauthorizedAccessException
+                                       or SecurityException
+                                       or ExternalException
+                                       or DllNotFoundException
+                                       or EntryPointNotFoundException)
+        {
         }
     }
 
