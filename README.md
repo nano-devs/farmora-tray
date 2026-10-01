@@ -145,7 +145,7 @@ Errors:
 | `401` | Bad or missing API key |
 | `403` | `Origin` not allowlisted |
 | `404` | Printer not configured or not installed |
-| `503` | Printer not ready (`title`: `Printer not ready`), or the job stayed queued / failed and was removed from the spooler. Other spooler, driver, or PDF-handler failures use `title`: `Print failed`. |
+| `503` | Printer not ready (`title`: `Printer not ready`), including a USB printer that is unplugged or switched off, or the job stayed queued / failed and was removed from the spooler. Other spooler, driver, or PDF-handler failures use `title`: `Print failed`. |
 
 ## Example: configure from PowerShell
 

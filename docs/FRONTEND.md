@@ -233,7 +233,7 @@ Do not require the cashier to re-submit the transaction.
 | `401` | Bad/missing API key | Open settings, re-enter key |
 | `403` | Origin not allowlisted | `PUT /config` with current `window.location.origin` |
 | `404` | Printer not configured or not installed | Open printer settings |
-| `503` | Printer not ready, or print failed. A job that only sat in the queue is removed. Body `title` is `Printer not ready` or `Print failed`. | Toast + Reprint |
+| `503` | Printer not ready (including an unplugged USB printer), or print failed. A job that only sat in the queue is removed. Body `title` is `Printer not ready` or `Print failed`. | Toast + Reprint |
 | Network error | Tray not running | Banner: “Farmora Tray offline” |
 
 Example client helper:
