@@ -85,6 +85,60 @@ Steps:
 
 Acrobat Reader may leave a small Reader window open after a print. That is normal. Cashiers can minimize it, but should not set Acrobat to block printing or ask for confirmation.
 
+### 2.0.1 Set the dot matrix paper size (21.5 cm × 14 cm)
+
+Farmora invoice PDFs are **21.5 cm wide × 14 cm high** (continuous form). The paper size is set in farmora-backend `PrintPageSettings`. The printer must use the same size, or Acrobat shrinks the page to A4 / Letter and the print lands across the perforation.
+
+When Farmora Tray prints, Acrobat **does not show its Print dialog**. It uses the **Windows printer driver's default paper size**. So step B below is the one that matters most. Step C sets the Acrobat options as a backup.
+
+Do this on each PC with a dot matrix printer, signed in as the **cashier** account. Steps B and C are per user.
+
+**A. Create the custom paper size in Windows (once per PC)**
+
+1. **Settings → Bluetooth & devices → Printers & scanners** → scroll to **Related settings** → **Print server properties**.  
+   (Or `Win+R` → `rundll32 printui.dll,PrintUIEntry /s`.)
+2. **Forms** tab → tick **Create a new form**.
+3. Form name: `Farmora 21.5x14`
+4. **Units: Metric**
+5. Paper size: **Width `21.50cm`**, **Height `14.00cm`**
+6. Printer area margins: Left / Right / Top / Bottom = `0.00cm`
+7. Click **Save Form** → **Close**.  
+   If the fields are greyed out, click **Change Form Settings** first (needs admin).
+
+**B. Make it the printer's default paper size (required)**
+
+1. Open **Control Panel → Devices and Printers** (`Win+R` → `control printers`).
+2. Right-click the dot matrix printer (e.g. `EPSON LX-310 ESC/P`) → **Printing preferences**.
+3. Open the paper settings. On Epson drivers: **Layout** tab → **Advanced…**. Other drivers: **Paper** / **Paper/Quality** tab.
+4. **Paper Size: `Farmora 21.5x14`**.
+5. Paper source: **Tractor** (continuous form). Not "Manual feed" or "Sheet".
+6. Orientation: **Portrait**. The form is already defined as wider than tall, so do not choose Landscape.
+7. Click **OK**.
+8. Right-click the printer again → **Printer properties** → **Advanced** tab → **Printing Defaults…**. Set the same paper size and paper source → **OK**. This sets the default for all users on the PC.
+9. Some Epson drivers also have a **Device Settings** tab. Under **Form To Tray Assignment**, set **Tractor** to `Farmora 21.5x14`.
+
+**C. Set the print options in Adobe Acrobat Reader**
+
+1. Open any Farmora invoice PDF in Acrobat Reader (download one from Farmora, or use the sample test PDF).
+2. **Menu / File → Print** (`Ctrl+P`).
+3. Printer: the dot matrix printer.
+4. Click **Properties** and confirm **Paper Size = `Farmora 21.5x14`** and paper source **Tractor** (should already be set from step B).
+5. **Page Sizing & Handling: Actual size**. Do not use *Fit* or *Shrink oversized pages*.
+6. **Untick** *Choose paper source by PDF page size*.
+7. Orientation: **Auto portrait/landscape**. If the test print comes out rotated, change it to **Portrait**.
+8. Click **Print**. Acrobat remembers these settings for the next prints.
+9. Optional: **Menu → Preferences → Page Display** → set **Zoom** to *Fit Page*, so the Reader window that sometimes stays open shows the whole invoice.
+
+**D. Load the paper and test**
+
+1. Load the continuous form in the tractor and align the top of the first form with the print head (top-of-form). See the printer manual for the tear-off / TOF button.
+2. Print a real Farmora invoice through the tray (6.2).
+3. Check:
+   - The text is not shrunk. The invoice fills the form.
+   - Printing starts at the top of the form and stops before the perforation.
+   - The next print starts at the top of the next form (no drift).
+4. If every print is shifted up or down by the same amount, adjust the paper position on the printer, not the PDF. If it drifts more with each print, the paper size is wrong (still A4 / Letter / 11"). Recheck step B.
+
 ### 2.1 Pick the zip and copy files
 
 1. On the PC, open **Settings → System → About** and read **System type**.
@@ -357,6 +411,7 @@ Copy one row per PC:
 |---|------|--------------------|------|
 | 1 | Windows printers installed + test page OK | | [ ] |
 | 2 | Acrobat Reader installed, default for `.pdf`, `printto` check = `True` (dot matrix PCs) | | [ ] |
+| 2a | `Farmora 21.5x14` form created, set as dot matrix printer default (Tractor), Acrobat set to *Actual size* | | [ ] |
 | 3 | Farmora Tray files in fixed folder | | [ ] |
 | 4 | API key saved into Farmora FE on this PC | | [ ] |
 | 5 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
@@ -394,6 +449,8 @@ Copy one row per PC:
 | `404` printer not configured | Mapping empty | Set `dotMatrix` / `thermal` in FE or PowerShell |
 | `404` printer not found | Windows renamed/removed printer | Fix Windows printers, remap exact name |
 | `503` print failed | Driver / offline / no PDF handler | Windows test page. For dot matrix, make sure Acrobat Reader is the default `.pdf` app and the `printto` check in 2.0 returns `True` |
+| Dot matrix prints small / shrunk, or crosses the perforation | Printer default paper is A4 / Letter, or Acrobat set to *Fit* | Set `Farmora 21.5x14` as the printer default (2.0.1 B) and Acrobat to *Actual size* (2.0.1 C) |
+| Each dot matrix print drifts further down the forms | Paper length wrong (not 14 cm) | Recheck the form size is `21.50 × 14.00 cm` and selected as default, under **Printing Defaults** too |
 | Dot matrix fails, thermal works | Default PDF app is Edge / a browser, or Windows reset the default after an update | Set Adobe Acrobat as default for `.pdf` again (2.0) |
 | Desktop icon opens Farmora but tray "not configured" | Icon opens a different browser or profile than where the key was saved | Recreate the icon (5.3) with the right browser and `--profile-directory`, or paste the key again in that profile |
 | Works then stops after reboot | No startup task / task under wrong user | Recreate Task Scheduler trigger for cashier user |
