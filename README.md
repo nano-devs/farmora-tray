@@ -217,7 +217,7 @@ async function printDotMatrixPdf(pdfBytes) {
 
 Farmora Tray does **not** generate invoice layouts; it only routes ready-to-print payloads to the configured Windows printers.
 
-PDF jobs use the Windows **printto** shell verb (Edge / Acrobat / whatever is registered for `.pdf`). Thermal jobs send raw ESC/POS bytes through the Windows spooler.
+PDF jobs use the Windows **printto** shell verb, so the default `.pdf` app on the PC must support it. Install **Adobe Acrobat Reader** and make it the default PDF app. Microsoft Edge usually does not register `printto` and dot matrix printing fails with `503`. Thermal jobs send raw ESC/POS bytes through the Windows spooler.
 
 ## Smoke test
 
