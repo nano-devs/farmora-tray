@@ -16,6 +16,7 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 - [ ] Admin login for Farmora (to open printer settings after FE is ready)
 - [ ] This checklist (printed or on phone)
 - [ ] Sample test PDF (optional) and knowing which PC has which printers
+- [ ] **Adobe Acrobat Reader** offline installer (64-bit and 32-bit) on the USB stick, in case the PC has no PDF app or the shop internet is slow
 
 ### Build the zips (on your laptop, before travel)
 
@@ -39,6 +40,7 @@ To publish a folder of assemblies instead (debug), use Debug or pass `/p:Publish
 | Arch | x64 or x86. Match the zip to **System type**. This build does not support ARM. |
 | .NET | Not required on the PC when you use the self-contained publish above. |
 | Printers | Installed in Windows with working drivers. Print a Windows test page first. |
+| PDF app | **Required for dot matrix printing.** Install **Adobe Acrobat Reader** (free) and set it as the default app for `.pdf`. Microsoft Edge alone is not enough. See [2.0](#20-install-a-pdf-app-that-can-print-silently). Thermal-only PCs do not need it. |
 | User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
 | Browser | Chrome / Edge. Use the same browser staff use daily. |
 | Network | The PC can open the Farmora web app. The tray itself only uses localhost. |
@@ -55,6 +57,33 @@ Typical printers per PC:
 ## 2. Install Farmora Tray on the PC
 
 Do this **once per client PC**.
+
+### 2.0 Install a PDF app that can print silently
+
+Farmora Tray does not render PDFs itself. For `/dotmatrix` it saves the PDF to a temp file and asks Windows to print it with the **printto** shell verb. Whatever app is the default for `.pdf` opens the file and does the printing. That app must support `printto`.
+
+| PDF app | Works? |
+|---------|--------|
+| **Adobe Acrobat Reader** / Acrobat | Yes. **Recommended** (tested on site). |
+| Microsoft Edge (Windows default) | Usually **no**. Edge does not register `printto` for PDFs, so the print fails with `503`. |
+| Browsers (Chrome, Firefox) as default PDF app | No. |
+
+Steps:
+
+1. Install **Adobe Acrobat Reader** (from the USB stick or get.adobe.com/reader). Untick the optional extras (McAfee and similar) in the installer.
+2. Open Acrobat Reader once. Accept the license and dismiss any first-run prompts, so it does not pop up a dialog during a print.
+3. Make it the default: **Settings → Apps → Default apps** → search `.pdf` → choose **Adobe Acrobat**. Do this while signed in as the **cashier** Windows account (defaults are per user).
+4. Check that `printto` is registered for that user:
+
+   ```powershell
+   $progId = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice').ProgId
+   $progId
+   Test-Path "Registry::HKEY_CLASSES_ROOT\$progId\shell\printto"
+   ```
+
+   Expect a ProgId such as `Acrobat.Document.DC` and `True`. `False` means dot matrix printing will fail. Fix the default app first.
+
+Acrobat Reader may leave a small Reader window open after a print. That is normal. Cashiers can minimize it, but should not set Acrobat to block printing or ask for confirmation.
 
 ### 2.1 Pick the zip and copy files
 
@@ -216,6 +245,48 @@ Invoke-RestMethod http://127.0.0.1:9123/config -Headers $headers
 
 `allowedOrigin` must match the browser origin exactly (scheme + host + port), e.g. `http://localhost:3000` vs `https://app.example.com`.
 
+### 5.3 Desktop icon to open Farmora
+
+Give the cashier one icon on the desktop that opens Farmora, so they never type the URL or open the wrong browser.
+
+The shortcut must open the **same browser and profile** where you saved the API key in 5.1. The API key lives in that browser profile's local storage. A plain website shortcut (`.url`) opens the *default* browser, which may be a different browser or profile. If it is, Farmora shows the tray as not configured.
+
+**Option A (recommended): shortcut to the browser with the Farmora URL**
+
+Run in PowerShell as the cashier user. Set `$url` to the Farmora URL for this site, and set `$browser` to the browser used in 5.1.
+
+```powershell
+$url     = "https://app.farmora.example"   # same origin as allowedOrigin
+# Edge:
+$browser = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+# Chrome (use instead if staff use Chrome):
+# $browser = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+
+$lnkPath  = Join-Path ([Environment]::GetFolderPath("Desktop")) "Farmora.lnk"
+$shell    = New-Object -ComObject WScript.Shell
+$lnk      = $shell.CreateShortcut($lnkPath)
+$lnk.TargetPath   = $browser
+$lnk.Arguments    = "--profile-directory=Default $url"
+$lnk.IconLocation = "C:\Program Files\FarmoraTray\FarmoraTray.exe,0"   # Farmora icon; or C:\FarmoraTray\FarmoraTray.exe,0
+$lnk.Description  = "Open Farmora"
+$lnk.Save()
+```
+
+Notes:
+
+- Check the browser path exists: `Test-Path $browser`. Chrome may be under `${env:ProgramFiles(x86)}` or `%LocalAppData%\Google\Chrome\Application` instead.
+- `--profile-directory=Default` is the first browser profile. If staff use another profile, find its folder name at `edge://version` or `chrome://version` (**Profile path**, last part, e.g. `Profile 1`).
+- To open Farmora in its own window without tabs or an address bar, add `--app=` before the URL: `"--profile-directory=Default --app=$url"`.
+
+**Option B: install as an app from the browser**
+
+- Edge: open Farmora → **… → Apps → Install this site as an app**, then pin or create a desktop shortcut when asked.
+- Chrome: open Farmora → **⋮ → Cast, save, and share → Install page as app** (or **Create shortcut…** with **Open as window** ticked).
+
+This uses the current profile automatically and adds a desktop icon.
+
+After creating the icon: close the browser, double-click the icon, and confirm Farmora opens and shows the tray **online** (the API key is still there).
+
 ---
 
 ## 6. Smoke test (do not skip)
@@ -268,12 +339,13 @@ Invoke-WebRequest http://127.0.0.1:9123/thermal -Method Post -Headers $headers `
 Explain only what they need:
 
 1. Farmora Tray sits in the system tray. It starts at login. Do not choose **Exit** unless support asks you to.
-2. Always open Farmora in the **same browser profile** where you saved the API key.
-3. If print fails:
+2. Open Farmora by double-clicking the **Farmora** icon on the desktop. Do not open it from another browser or by typing the URL in a different profile.
+3. If an Adobe Acrobat Reader window stays open after printing, minimize it. Do not uninstall Acrobat or change the default PDF app.
+4. If print fails:
    - Check printer power / paper  
    - Check Farmora shows tray online  
    - Call support / on-site contact — do not delete `C:\Program Files\FarmoraTray`
-4. Reprint from the document screen if a print jammed (when FE supports it).
+5. Reprint from the document screen if a print jammed (when FE supports it).
 
 ---
 
@@ -284,14 +356,16 @@ Copy one row per PC:
 | # | Item | PC name / location | Done |
 |---|------|--------------------|------|
 | 1 | Windows printers installed + test page OK | | [ ] |
-| 2 | Farmora Tray files in fixed folder | | [ ] |
-| 3 | API key saved into Farmora FE on this PC | | [ ] |
-| 4 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
-| 5 | `allowedOrigin` = production Farmora URL | | [ ] |
-| 6 | Task Scheduler logon task created | | [ ] |
-| 7 | `/health` OK after reboot | | [ ] |
-| 8 | Real document smoke print OK | | [ ] |
-| 9 | Cashier shown what not to close/delete | | [ ] |
+| 2 | Acrobat Reader installed, default for `.pdf`, `printto` check = `True` (dot matrix PCs) | | [ ] |
+| 3 | Farmora Tray files in fixed folder | | [ ] |
+| 4 | API key saved into Farmora FE on this PC | | [ ] |
+| 5 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
+| 6 | `allowedOrigin` = production Farmora URL | | [ ] |
+| 7 | Task Scheduler logon task created | | [ ] |
+| 8 | Farmora desktop icon opens the right browser profile, tray shows online | | [ ] |
+| 9 | `/health` OK after reboot | | [ ] |
+| 10 | Real document smoke print OK | | [ ] |
+| 11 | Cashier shown the desktop icon and what not to close/delete | | [ ] |
 
 ---
 
@@ -319,7 +393,9 @@ Copy one row per PC:
 | `403 Origin not allowed` | `allowedOrigin` mismatch | Save settings again from the real Farmora URL, or `PUT /config` with correct origin |
 | `404` printer not configured | Mapping empty | Set `dotMatrix` / `thermal` in FE or PowerShell |
 | `404` printer not found | Windows renamed/removed printer | Fix Windows printers, remap exact name |
-| `503` print failed | Driver / offline / no PDF handler | Windows test page; for PDF ensure Edge/Acrobat can open PDFs |
+| `503` print failed | Driver / offline / no PDF handler | Windows test page. For dot matrix, make sure Acrobat Reader is the default `.pdf` app and the `printto` check in 2.0 returns `True` |
+| Dot matrix fails, thermal works | Default PDF app is Edge / a browser, or Windows reset the default after an update | Set Adobe Acrobat as default for `.pdf` again (2.0) |
+| Desktop icon opens Farmora but tray "not configured" | Icon opens a different browser or profile than where the key was saved | Recreate the icon (5.3) with the right browser and `--profile-directory`, or paste the key again in that profile |
 | Works then stops after reboot | No startup task / task under wrong user | Recreate Task Scheduler trigger for cashier user |
 | Key lost after new Windows user | Config is per-user | Set up under the cashier account, or copy config carefully |
 
