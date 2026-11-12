@@ -199,6 +199,25 @@ Before Farmora mapping:
 
 If the name is wrong or the driver is “offline,” Farmora Tray cannot fix that — fix Windows first.
 
+### 4.1 Set the dot matrix paper size (21.5 × 14 cm)
+
+**Do not skip this on dot matrix PCs.** Farmora sends B2B invoices, returns and POs as PDFs of **21.5 cm wide × 14 cm tall**, one PDF page per form sheet. The tray hands the PDF to Acrobat with `printto`, and Acrobat prints on the paper size set in the **printer driver**, not the size inside the PDF. If the driver is left on Letter, A4 or “Fanfold 9½ × 11”, Acrobat rotates the page, prints it **sideways**, and each sheet takes a full tall page. A 2-sheet invoice then runs onto a third page.
+
+1. **Measure the paper.** Distance between two tear lines (perforations) and the width without the hole strips. The standard Farmora form is **21.5 × 14 cm** (about 8.5 × 5.5 inch). If the shop uses another size, stop and tell the Farmora team: the PDF layout must match the paper.
+2. **Create the form in Windows.**
+   1. **Settings → Bluetooth & devices → Printers & scanners → Print server properties** (under *Related settings*). Or press `Win + R` and run `printui /s /t2`.
+   2. Tab **Forms** → tick **Create a new form**.
+   3. Name: `Farmora 21.5x14`. Units: **Metric**. Width **21.50 cm**, Height **14.00 cm**, all margins **0**.
+   4. **Save Form** → **Close**.
+3. **Make it the printer default.** Do this in both places; Acrobat silent printing uses the defaults, not the last dialog:
+   1. Printer → **Printer properties → Advanced → Printing Defaults…**
+   2. Printer → **Printing preferences**
+
+   In both: **Paper Size** = `Farmora 21.5x14` (on Epson drivers it may be under **Advanced…** or **Layout**), **Orientation = Portrait**, **Paper Source = Tractor**. Portrait is correct: the form itself is already wider than tall.
+4. **Printer page length (if the printer has one).** Many dot matrix printers keep their own page length for tractor paper (for example the Epson default-setting mode, or a page-length setting on the panel). Set it to **5.5 inch (14 cm)** so tear-off and form feed line up with the perforation.
+5. **Acrobat Reader.** Open any PDF → **Print** → choose the dot matrix printer → **Page Sizing & Handling: Actual size**, untick **Choose paper source by PDF page size**, untick **Auto portrait/landscape** if shown → print once, then close. Acrobat keeps these settings for later silent prints.
+6. **Check.** Reprint a Faktur Penjualan with **more than 15 items** (it uses 2 sheets) from Farmora. Expected: text upright across the paper, each sheet exactly 14 cm, and the paper stops at the perforation after sheet 2. Sideways text or a third page means steps 2–5 are not applied yet.
+
 ---
 
 ## 5. Configure Farmora web app (this PC)
@@ -357,6 +376,7 @@ Copy one row per PC:
 |---|------|--------------------|------|
 | 1 | Windows printers installed + test page OK | | [ ] |
 | 2 | Acrobat Reader installed, default for `.pdf`, `printto` check = `True` (dot matrix PCs) | | [ ] |
+| 2a | Dot matrix paper size `Farmora 21.5x14` set as default (4.1), 2-sheet invoice prints upright with no third page | | [ ] |
 | 3 | Farmora Tray files in fixed folder | | [ ] |
 | 4 | API key saved into Farmora FE on this PC | | [ ] |
 | 5 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
@@ -394,6 +414,8 @@ Copy one row per PC:
 | `404` printer not configured | Mapping empty | Set `dotMatrix` / `thermal` in FE or PowerShell |
 | `404` printer not found | Windows renamed/removed printer | Fix Windows printers, remap exact name |
 | `503` print failed | Driver / offline / no PDF handler | Windows test page. For dot matrix, make sure Acrobat Reader is the default `.pdf` app and the `printto` check in 2.0 returns `True` |
+| Dot matrix prints sideways, or each sheet takes a full tall page | Driver paper size is Letter / A4 / Fanfold 9½ × 11, so Acrobat rotates the 21.5 × 14 cm page | Set paper size `Farmora 21.5x14`, Portrait, Tractor as the printer default (4.1) |
+| Dot matrix prints an extra (third) page or stops in the middle of a form | Driver or printer page length is not 14 cm | 4.1 steps 3–4: driver paper size and the printer's own page length (5.5 inch) |
 | Dot matrix fails, thermal works | Default PDF app is Edge / a browser, or Windows reset the default after an update | Set Adobe Acrobat as default for `.pdf` again (2.0) |
 | Desktop icon opens Farmora but tray "not configured" | Icon opens a different browser or profile than where the key was saved | Recreate the icon (5.3) with the right browser and `--profile-directory`, or paste the key again in that profile |
 | Works then stops after reboot | No startup task / task under wrong user | Recreate Task Scheduler trigger for cashier user |
