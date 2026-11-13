@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FarmoraTray.Models;
 
 namespace FarmoraTray.Services;
@@ -76,9 +77,10 @@ public sealed class ConfigStore
             {
                 _current = main.Config!;
                 _apiKeyWasGenerated = false;
-                // Rewrite only when legacy printer keys or normalization changed the file.
+                // Keep a healthy file as it is, including its line endings and whitespace.
+                // Rewrite when legacy keys or normalization changed the saved values.
                 var rewritten = JsonSerializer.Serialize(_current, JsonOptions);
-                if (!JsonTextEquals(main.RawJson!, rewritten))
+                if (!JsonValuesEqual(main.RawJson!, rewritten))
                 {
                     PersistUnlocked();
                 }
@@ -346,14 +348,18 @@ public sealed class ConfigStore
         _startupWarnings.Add(message);
     }
 
-    private static bool JsonTextEquals(string left, string right)
+    private static bool JsonValuesEqual(string existing, string rewritten)
     {
-        return string.Equals(NormalizeJsonText(left), NormalizeJsonText(right), StringComparison.Ordinal);
-    }
-
-    private static string NormalizeJsonText(string json)
-    {
-        return json.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        try
+        {
+            var left = JsonNode.Parse(existing);
+            var right = JsonNode.Parse(rewritten);
+            return JsonNode.DeepEquals(left, right);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static bool IsOnlyNullBytes(string json)

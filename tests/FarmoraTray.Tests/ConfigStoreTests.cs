@@ -295,13 +295,18 @@ public class ConfigStoreTests
     public void ExistingHealthyConfig_WithWindowsLineEndings_IsNotRewritten()
     {
         using var dir = new TempDirectory();
-        var json = SettingsJson(
-            "stable-key",
-            "https://app.farmora.example",
-            dotMatrix: "EPSON LX-310",
-            thermal: "POS-80");
-        json = json.Replace("\n", "\r\n", StringComparison.Ordinal) + "\r\n";
-        var before = Encoding.UTF8.GetBytes(json);
+        // Explicit CRLF and extra spaces. Do not derive this from serializer text:
+        // on Windows that text already uses \r\n, and replacing \n doubles the CR.
+        var before = Encoding.UTF8.GetBytes(
+            "{\r\n" +
+            "    \"apiKey\" : \"stable-key\" ,\r\n" +
+            "    \"allowedOrigin\" : \"https://app.farmora.example\" ,\r\n" +
+            "    \"port\" : 9123 ,\r\n" +
+            "    \"printers\" : {\r\n" +
+            "        \"thermal\" : \"POS-80\" ,\r\n" +
+            "        \"dotMatrix\" : \"EPSON LX-310\"\r\n" +
+            "    }\r\n" +
+            "}\r\n");
         File.WriteAllBytes(ConfigPath(dir), before);
 
         var store = Open(dir);
