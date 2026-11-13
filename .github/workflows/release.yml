@@ -1,0 +1,71 @@
+name: Release
+
+# Push a tag such as v1.1.0 to publish a release. Installed trays pick it up
+# from GitHub Releases within a few hours (or via "Check for updates").
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # Velopack app id. Never change it: installed PCs only update from releases with this id.
+  # It also names the install folder (%LocalAppData%\FarmoraTrayApp), kept apart from
+  # the config folder (%LocalAppData%\FarmoraTray) so uninstalling keeps the API key.
+  PACK_ID: FarmoraTrayApp
+  # Keep in step with the Velopack package version in FarmoraTray.csproj.
+  VPK_VERSION: 1.2.161
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet test farmora-tray.slnx --configuration Release -p:SelfContained=false
+
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      - name: Build, pack and upload
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REPO_URL: https://github.com/${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for rid in win-x64 win-x86; do
+            # No single-file compression: Velopack packages are already zipped, compression
+            # defeats delta updates, and it hides the VelopackApp check from vpk pack.
+            dotnet publish src/FarmoraTray/FarmoraTray.csproj -c Release -r "$rid" --self-contained true \
+              -p:Version="$VERSION" -p:EnableCompressionInSingleFile=false -o "publish/$rid"
+
+            # Previous release lets vpk build a small delta package. None exists on the first release.
+            vpk download github --repoUrl "$REPO_URL" --token "$GH_TOKEN" --channel "$rid" -o releases \
+              || echo "No previous $rid release; skipping delta."
+
+            vpk pack --packId "$PACK_ID" --packVersion "$VERSION" --packDir "publish/$rid" \
+              --mainExe FarmoraTray.exe --runtime "$rid" --channel "$rid" \
+              --packTitle "Farmora Tray" --icon src/FarmoraTray/FarmoraTray.ico \
+              --shortcuts StartMenuRoot -o releases
+
+            vpk upload github --repoUrl "$REPO_URL" --token "$GH_TOKEN" --channel "$rid" -o releases \
+              --tag "$GITHUB_REF_NAME" --releaseName "Farmora Tray $VERSION" --publish --merge
+          done

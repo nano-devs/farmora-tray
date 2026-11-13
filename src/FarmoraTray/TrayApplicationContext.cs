@@ -7,26 +7,40 @@ internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly WebApplication _app;
     private readonly ConfigStore _configStore;
+    private readonly UpdateService _updates;
+    private readonly SynchronizationContext _uiContext;
+    private readonly ToolStripMenuItem _checkUpdatesItem;
     private readonly ContextMenuStrip _menu;
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _icon;
     private int _exitStarted;
     private bool _trayDisposed;
 
-    public TrayApplicationContext(WebApplication app, ConfigStore configStore)
+    public TrayApplicationContext(WebApplication app, ConfigStore configStore, UpdateService updates)
     {
         _app = app;
         _configStore = configStore;
+        _updates = updates;
 
         var listenUrl = $"http://127.0.0.1:{configStore.Current.Port}";
 
         _menu = new ContextMenuStrip();
+        _menu.Items.Add(new ToolStripMenuItem($"Version {updates.CurrentVersion}") { Enabled = false });
         _menu.Items.Add(new ToolStripMenuItem($"Listening {listenUrl}") { Enabled = false });
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Copy API key", null, (_, _) => CopyApiKey());
         _menu.Items.Add("Open config folder", null, (_, _) => OpenConfigFolder());
+        _checkUpdatesItem = new ToolStripMenuItem("Check for updates", null, OnCheckUpdatesClicked)
+        {
+            Enabled = updates.IsInstalled
+        };
+        _menu.Items.Add(_checkUpdatesItem);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, OnExitClicked);
+
+        // Creating the menu installs the WinForms synchronization context for this thread.
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+        _updates.RestartRequested += OnRestartRequested;
 
         _icon = LoadIcon();
         _notifyIcon = new NotifyIcon
@@ -74,7 +88,43 @@ internal sealed class TrayApplicationContext : ApplicationContext
         });
     }
 
-    private async void OnExitClicked(object? sender, EventArgs e)
+    private async void OnCheckUpdatesClicked(object? sender, EventArgs e)
+    {
+        _checkUpdatesItem.Enabled = false;
+        try
+        {
+            var result = await _updates.CheckNowAsync();
+            var message = result switch
+            {
+                UpdateCheckResult.UpToDate => $"Farmora Tray {_updates.CurrentVersion} is up to date.",
+                UpdateCheckResult.Busy => "An update check is already running.",
+                UpdateCheckResult.Failed => "Could not check for updates. Check the internet connection and try again.",
+                _ => null
+            };
+
+            if (message is not null && !_trayDisposed)
+            {
+                _notifyIcon.ShowBalloonTip(5000, "Farmora Tray", message, ToolTipIcon.Info);
+            }
+        }
+        finally
+        {
+            if (!_trayDisposed)
+            {
+                _checkUpdatesItem.Enabled = true;
+            }
+        }
+    }
+
+    // Raised from a background thread once the updater is waiting for this process to exit.
+    private void OnRestartRequested(string version)
+    {
+        _uiContext.Post(_ => ExitApp(), null);
+    }
+
+    private void OnExitClicked(object? sender, EventArgs e) => ExitApp();
+
+    private async void ExitApp()
     {
         if (Interlocked.Exchange(ref _exitStarted, 1) != 0)
         {
@@ -103,6 +153,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (disposing)
         {
+            _updates.RestartRequested -= OnRestartRequested;
             HideTray();
         }
 

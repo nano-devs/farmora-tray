@@ -24,3 +24,7 @@ Desktop.ini
 *.log
 .env
 .env.*
+
+## Release builds
+publish/
+releases/
