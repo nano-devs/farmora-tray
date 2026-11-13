@@ -25,12 +25,17 @@ Keep Farmora Tray running while cashiers use Farmora. On production PCs install 
 
 Farmora Tray installs and updates itself with [Velopack](https://velopack.io) from this repo's [GitHub Releases](https://github.com/nano-devs/farmora-tray/releases).
 
-**Publish a release:** push a version tag.
+**Publish a release** (either way):
 
-```powershell
-git tag v1.1.0
-git push origin v1.1.0
-```
+- On GitHub: **Actions → Release → Run workflow**, keep the branch on `main`, enter the version (e.g. `1.1.0`) and run. The workflow creates the `v1.1.0` tag and the release.
+- Or push a version tag:
+
+  ```powershell
+  git tag v1.1.0
+  git push origin v1.1.0
+  ```
+
+Do not create the release by hand under **Releases → Draft a new release**. The workflow creates it, and a hand-made release is public with no update files until the build finishes.
 
 `.github/workflows/release.yml` then runs the tests, publishes self-contained `win-x64` and `win-x86` builds with that version, packs them with `vpk` (one channel per architecture, plus delta packages against the previous release) and uploads them to a GitHub release named after the tag. Each channel gets a `Setup.exe` for first installs, a portable zip, `.nupkg` update packages and a `releases.<channel>.json` feed.
 
