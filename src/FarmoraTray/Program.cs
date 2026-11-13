@@ -1,6 +1,7 @@
 using FarmoraTray.Apis;
 using FarmoraTray.Services;
 using Scalar.AspNetCore;
+using Velopack;
 
 namespace FarmoraTray;
 
@@ -9,6 +10,10 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Must run first: Velopack invokes the exe with hook arguments during install,
+        // update and uninstall, and Run() handles and exits those without starting the tray.
+        VelopackApp.Build().Run();
+
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
@@ -53,7 +58,9 @@ internal static class Program
         builder.Services.AddSingleton<PrinterDiscovery>();
         builder.Services.AddSingleton<PdfPrintService>();
         builder.Services.AddSingleton<RawPrintService>();
+        builder.Services.AddSingleton<PrintActivity>();
         builder.Services.AddSingleton<PrintOrchestrator>();
+        builder.Services.AddSingleton<UpdateService>();
         builder.Services.AddProblemDetails();
 
         builder.Services.AddCors(options =>
@@ -117,8 +124,10 @@ internal static class Program
             return;
         }
 
-        using (var tray = new TrayApplicationContext(app, configStore))
+        var updates = app.Services.GetRequiredService<UpdateService>();
+        using (var tray = new TrayApplicationContext(app, configStore, updates))
         {
+            updates.Start();
             Application.Run(tray);
         }
 

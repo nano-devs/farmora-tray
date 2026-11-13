@@ -19,21 +19,45 @@ dotnet run
 
 On first start, Farmora Tray writes `%LocalAppData%\FarmoraTray\config.json` and shows a tray balloon that an API key was created. Right-click the tray icon and choose **Copy API key**. Paste that key into the Farmora frontend printer settings for this PC.
 
-Keep Farmora Tray running while cashiers use Farmora. For production PCs, start `FarmoraTray.exe` at user logon with Task Scheduler or the Startup folder. Do not install this tray build as a Windows Service. Session 0 has no tray icon. A Windows Service and an installer can come later.
+Keep Farmora Tray running while cashiers use Farmora. On production PCs install it with the release `Setup.exe` and start it at user logon with Task Scheduler (see [docs/ON-SITE-SETUP.md](./docs/ON-SITE-SETUP.md)). Do not install it as a Windows Service: session 0 has no tray icon.
 
-### Publish (self-contained win-x64 and win-x86)
+## Releases and self-update
+
+Farmora Tray installs and updates itself with [Velopack](https://velopack.io) from this repo's [GitHub Releases](https://github.com/nano-devs/farmora-tray/releases).
+
+**Publish a release:** push a version tag.
+
+```powershell
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+`.github/workflows/release.yml` then runs the tests, publishes self-contained `win-x64` and `win-x86` builds with that version, packs them with `vpk` (one channel per architecture, plus delta packages against the previous release) and uploads them to a GitHub release named after the tag. Each channel gets a `Setup.exe` for first installs, a portable zip, `.nupkg` update packages and a `releases.<channel>.json` feed.
+
+**On the PC:**
+
+- `Setup.exe` installs per user into `%LocalAppData%\FarmoraTrayApp\current\FarmoraTray.exe` without admin rights. Config stays in `%LocalAppData%\FarmoraTray`, so reinstall and uninstall keep the API key.
+- About 2 minutes after start, then every 4 hours, the tray checks the latest non-prerelease GitHub release on its own channel. It downloads updates in the background.
+- It restarts into the new version only when no print is running and none finished in the last 5 minutes. The tray is offline for a few seconds.
+- Tray menu → **Check for updates** checks immediately and only waits for a running print. The menu's top line shows the installed version.
+- Copies run with `dotnet run` or from a plain exe/zip are not Velopack installs and do not update.
+
+Notes:
+
+- Don't change the Velopack app id `FarmoraTrayApp` (`PACK_ID` in the workflow), or installed PCs stop receiving updates.
+- Keep `VPK_VERSION` in the workflow equal to the `Velopack` package version in the csproj.
+- Release tags must be increasing semver (`vMAJOR.MINOR.PATCH`). Pre-releases are ignored by installed trays.
+- GitHub allows 60 unauthenticated API calls per hour per public IP. Even dozens of PCs behind one shop IP stay well under that at one check per 4 hours.
+- The installer and exe are not code-signed, so SmartScreen warns on first install. Signing can be added with `vpk pack --signParams` or `--azureTrustedSignFile`.
+
+### Local publish (testing only)
 
 ```powershell
 cd src/FarmoraTray
 dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
-dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
 ```
 
-Release publish uses the csproj single-file defaults. Each RID output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe per RID as `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`. The PC does not need .NET installed.
-
-Use the x64 zip on 64-bit Windows and the x86 zip on 32-bit Windows. Check **Settings → System → About → System type**. Do not install the x86 build on 64-bit Windows as the default path.
-
-To publish a folder of assemblies instead, use Debug or pass `/p:PublishSingleFile=false`.
+Release publish is a self-contained single `FarmoraTray.exe` per RID. A copy run this way works but does not self-update. To publish a folder of assemblies instead, use Debug or pass `/p:PublishSingleFile=false`.
 
 ## Auth & CORS
 

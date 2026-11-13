@@ -10,7 +10,7 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 
 ### Bring / prepare
 
-- [ ] Latest **self-contained** zips: `FarmoraTray-win-x64.zip` and `FarmoraTray-win-x86.zip`
+- [ ] Latest installers from [GitHub Releases](https://github.com/nano-devs/farmora-tray/releases/latest): the `win-x64` and `win-x86` `Setup.exe` files
 - [ ] USB stick or access to a network share
 - [ ] Farmora frontend URL for that site (production / staging)
 - [ ] Admin login for Farmora (to open printer settings after FE is ready)
@@ -18,33 +18,25 @@ Farmora Tray is a small Windows program that runs in the background on each clie
 - [ ] Sample test PDF (optional) and knowing which PC has which printers
 - [ ] **Adobe Acrobat Reader** offline installer (64-bit and 32-bit) on the USB stick, in case the PC has no PDF app or the shop internet is slow
 
-### Build the zips (on your laptop, before travel)
+### Get the installers (before travel)
 
-```powershell
-cd <repo>\src\FarmoraTray
-dotnet publish -c Release -r win-x64 --self-contained true -o .\publish\win-x64
-dotnet publish -c Release -r win-x86 --self-contained true -o .\publish\win-x86
-Compress-Archive -Path .\publish\win-x64\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x64.zip -Force
-Compress-Archive -Path .\publish\win-x86\FarmoraTray.exe -DestinationPath .\publish\FarmoraTray-win-x86.zip -Force
-```
+Download both `Setup.exe` files from the latest release: <https://github.com/nano-devs/farmora-tray/releases/latest>. One is for `win-x64`, the other for `win-x86`. Each is self-contained; the PC does **not** need .NET installed.
 
-Release publish is a compressed self-contained single file per RID. Each output is primarily `FarmoraTray.exe`. A `.pdb` and small json files may sit beside it. Zip the exe for each RID. The PC does **not** need .NET installed.
-
-To publish a folder of assemblies instead (debug), use Debug or pass `/p:PublishSingleFile=false`.
+Releases are built by GitHub Actions when a `v*` tag is pushed (see the README). Do not hand-build installers for customer PCs: a hand-built copy does not match the release history and may not update.
 
 ### PC and operating system requirements
 
 | Requirement | Notes |
 |-------------|--------|
 | OS | Windows 10 or 11, **64-bit or 32-bit**. Not Windows 7. |
-| Arch | x64 or x86. Match the zip to **System type**. This build does not support ARM. |
+| Arch | x64 or x86. Match the installer to **System type**. This build does not support ARM. |
 | .NET | Not required on the PC when you use the self-contained publish above. |
 | Printers | Installed in Windows with working drivers. Print a Windows test page first. |
 | PDF app | **Required for dot matrix printing.** Install **Adobe Acrobat Reader** (free) and set it as the default app for `.pdf`. Microsoft Edge alone is not enough. See [2.0](#20-install-a-pdf-app-that-can-print-silently). Thermal-only PCs do not need it. |
 | User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
 | Browser | Chrome / Edge. Use the same browser staff use daily. |
-| Network | The PC can open the Farmora web app. The tray itself only uses localhost. |
-| Disk and memory | Light. Leave a small amount of free disk for the single-file exe plus config under `%LocalAppData%\FarmoraTray`. |
+| Network | The PC can open the Farmora web app. The tray serves only localhost, and checks `github.com` / `api.github.com` for updates every few hours. |
+| Disk and memory | Light. About 200 MB free under `%LocalAppData%` for the app, one cached update and config. |
 | Auto-start | Startup folder or Task Scheduler at that user's logon. Not a Windows Service. |
 
 Typical printers per PC:
@@ -85,29 +77,26 @@ Steps:
 
 Acrobat Reader may leave a small Reader window open after a print. That is normal. Cashiers can minimize it, but should not set Acrobat to block printing or ask for confirmation.
 
-### 2.1 Pick the zip and copy files
+### 2.1 Run the installer
 
 1. On the PC, open **Settings → System → About** and read **System type**.
-2. Use `FarmoraTray-win-x64.zip` on 64-bit Windows. Use `FarmoraTray-win-x86.zip` on 32-bit Windows. Do not install the x86 build on 64-bit Windows as the default path.
-3. Create folder:
+2. Use the `win-x64` `Setup.exe` on 64-bit Windows and the `win-x86` one on 32-bit Windows. Do not install the x86 build on 64-bit Windows. Each build only updates to the same architecture.
+3. Sign in as the **cashier** Windows account and double-click `Setup.exe`. No admin rights are needed. It installs for that user only, into:
 
    ```text
-   C:\Program Files\FarmoraTray
+   %LocalAppData%\FarmoraTrayApp\current\FarmoraTray.exe
    ```
 
-   If UAC blocks you, use:
+   and adds **Farmora Tray** to the Start menu. Farmora Tray starts as soon as setup finishes.
 
-   ```text
-   C:\FarmoraTray
-   ```
+4. If SmartScreen says "Windows protected your PC", choose **More info → Run anyway**. The installer is not code-signed yet.
+5. Do **not** move or copy files out of the install folder. Updates replace `current\`. Config lives elsewhere (`%LocalAppData%\FarmoraTray\config.json`), so reinstalling or uninstalling keeps the API key and printer map.
 
-4. Unzip the matching zip into that folder. You should see `FarmoraTray.exe`. A `.pdb` is optional on site.
-
-5. Do **not** delete or hand-edit files inside the install folder later when updating. Replace the folder contents with a new zip. Config lives elsewhere. See below.
+**PC that already has the old zip install** (`C:\Program Files\FarmoraTray` or `C:\FarmoraTray`): right-click the tray icon → **Exit**, delete the old scheduled task (section 3) and the old folder, then run `Setup.exe` as above and recreate the task with the new path. The API key and printers carry over.
 
 ### 2.2 First run (get API key)
 
-1. Double-click `FarmoraTray.exe`.
+1. Setup starts Farmora Tray for you. Later, start it from the Start menu (**Farmora Tray**).
 2. No console window opens. Look for the Farmora Tray icon in the system tray. Windows may hide it under **Show hidden icons**.
 3. On **first run**, a balloon tip says that an API key was created.
 4. Right-click the icon and choose **Copy API key**.
@@ -157,9 +146,9 @@ Do **not** install this tray build as a Windows Service. A service runs in sessi
    - User: the cashier Windows account
 4. **Actions** → **New…**
    - Action: **Start a program**
-   - Program/script: `C:\Program Files\FarmoraTray\FarmoraTray.exe`  
-     (or `C:\FarmoraTray\FarmoraTray.exe`)
-   - Start in (optional): same folder as the exe
+   - Program/script: `%LocalAppData%\FarmoraTrayApp\current\FarmoraTray.exe`  
+     (Task Scheduler may not expand `%LocalAppData%`; if the task fails, enter the full path, e.g. `C:\Users\<cashier>\AppData\Local\FarmoraTrayApp\current\FarmoraTray.exe`)
+   - This path stays the same after updates.
 5. **Conditions**
    - Uncheck **Start the task only if the computer is on AC power** (laptops)
 6. **Settings**
@@ -180,7 +169,7 @@ Do **not** install this tray build as a Windows Service. A service runs in sessi
 ### Alternative (faster, less robust): Startup folder
 
 1. `Win+R` → `shell:startup`
-2. Create a shortcut to `FarmoraTray.exe`
+2. Copy the **Farmora Tray** shortcut from the Start menu into that folder
 
 Prefer Task Scheduler for production PCs.
 
@@ -267,7 +256,7 @@ $shell    = New-Object -ComObject WScript.Shell
 $lnk      = $shell.CreateShortcut($lnkPath)
 $lnk.TargetPath   = $browser
 $lnk.Arguments    = "--profile-directory=Default $url"
-$lnk.IconLocation = "C:\Program Files\FarmoraTray\FarmoraTray.exe,0"   # Farmora icon; or C:\FarmoraTray\FarmoraTray.exe,0
+$lnk.IconLocation = "$env:LocalAppData\FarmoraTrayApp\current\FarmoraTray.exe,0"   # Farmora icon
 $lnk.Description  = "Open Farmora"
 $lnk.Save()
 ```
@@ -338,13 +327,13 @@ Invoke-WebRequest http://127.0.0.1:9123/thermal -Method Post -Headers $headers `
 
 Explain only what they need:
 
-1. Farmora Tray sits in the system tray. It starts at login. Do not choose **Exit** unless support asks you to.
+1. Farmora Tray sits in the system tray. It starts at login. Do not choose **Exit** unless support asks you to. It updates itself; the icon may disappear for a few seconds while it restarts.
 2. Open Farmora by double-clicking the **Farmora** icon on the desktop. Do not open it from another browser or by typing the URL in a different profile.
 3. If an Adobe Acrobat Reader window stays open after printing, minimize it. Do not uninstall Acrobat or change the default PDF app.
 4. If print fails:
    - Check printer power / paper  
    - Check Farmora shows tray online  
-   - Call support / on-site contact — do not delete `C:\Program Files\FarmoraTray`
+   - Call support / on-site contact — do not uninstall Farmora Tray
 5. Reprint from the document screen if a print jammed (when FE supports it).
 
 ---
@@ -357,7 +346,7 @@ Copy one row per PC:
 |---|------|--------------------|------|
 | 1 | Windows printers installed + test page OK | | [ ] |
 | 2 | Acrobat Reader installed, default for `.pdf`, `printto` check = `True` (dot matrix PCs) | | [ ] |
-| 3 | Farmora Tray files in fixed folder | | [ ] |
+| 3 | Farmora Tray installed with the matching `Setup.exe` (x64/x86); tray menu shows the latest version | | [ ] |
 | 4 | API key saved into Farmora FE on this PC | | [ ] |
 | 5 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
 | 6 | `allowedOrigin` = production Farmora URL | | [ ] |
@@ -371,14 +360,19 @@ Copy one row per PC:
 
 ## 9. Updating Farmora Tray later
 
-1. Ask cashier to finish current sale.
-2. Stop tray: right-click the tray icon and choose **Exit**, or End Task `FarmoraTray.exe`, or stop the scheduled task.
-3. Replace files under `C:\Program Files\FarmoraTray` with the new zip contents.
-4. Start tray again (Run scheduled task or reboot).
-5. **Do not** delete `%LocalAppData%\FarmoraTray\config.json` — API key and printer map stay there.
-6. Re-check `/health` and one test print.
+Farmora Tray updates itself from GitHub Releases. Nobody needs to visit the PC.
 
----
+1. About 2 minutes after start, then every 4 hours, it checks for a newer release on its channel (`win-x64` or `win-x86`).
+2. A newer release is downloaded in the background (a small delta when possible).
+3. It waits until no print is running **and** no print has finished in the last 5 minutes, so it does not restart in the middle of a sale.
+4. It exits and the updater swaps in the new version and starts it again. The tray is offline for a few seconds.
+5. `config.json` (API key, printers, origin) is untouched.
+
+To update right away (e.g. on site), right-click the tray icon → **Check for updates**. It still waits for a running print to finish. The top line of the tray menu shows the installed version; `GET /health` returns it too.
+
+If the PC cannot reach GitHub, the tray keeps working on its current version and tries again later. An update that was downloaded but not applied is applied on the next start.
+
+The old zip install (copy of `FarmoraTray.exe` in a folder) does **not** update itself, and neither does `dotnet run`. **Check for updates** is greyed out there. Move those PCs to `Setup.exe` (2.1).
 
 ## 10. Troubleshooting
 
@@ -397,13 +391,15 @@ Copy one row per PC:
 | Dot matrix fails, thermal works | Default PDF app is Edge / a browser, or Windows reset the default after an update | Set Adobe Acrobat as default for `.pdf` again (2.0) |
 | Desktop icon opens Farmora but tray "not configured" | Icon opens a different browser or profile than where the key was saved | Recreate the icon (5.3) with the right browser and `--profile-directory`, or paste the key again in that profile |
 | Works then stops after reboot | No startup task / task under wrong user | Recreate Task Scheduler trigger for cashier user |
+| Tray stays on an old version | No access to `github.com`, or old zip install | Right-click → **Check for updates**; a balloon says if the check failed. Allow `github.com`, `api.github.com` and `objects.githubusercontent.com` through the shop firewall. Zip installs: reinstall with `Setup.exe` (2.1) |
+| Startup task fails after moving to `Setup.exe` | Task still points to the old folder | Edit the task action to the new path (section 3) |
 | Key lost after new Windows user | Config is per-user | Set up under the cashier account, or copy config carefully |
 
 ### Useful paths
 
 | What | Path |
 |------|------|
-| Install | `C:\Program Files\FarmoraTray\` |
+| Install | `%LocalAppData%\FarmoraTrayApp\` (per Windows user) |
 | Config + API key | `%LocalAppData%\FarmoraTray\config.json` |
 | Health | `http://127.0.0.1:9123/health` |
 
