@@ -1,11 +1,21 @@
 name: Release
 
-# Push a tag such as v1.1.0 to publish a release. Installed trays pick it up
-# from GitHub Releases within a few hours (or via "Check for updates").
+# Publish a release either way:
+#   - Actions -> Release -> Run workflow on main, enter a version such as 1.1.0.
+#     The workflow creates the v1.1.0 tag and the release.
+#   - Or push a tag such as v1.1.0.
+# Do not create the release by hand on GitHub first: the workflow creates it.
+# Installed trays pick it up within a few hours (or via "Check for updates").
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (e.g. 1.1.0). Must be higher than the last release."
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -32,10 +42,33 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Read version from tag
+      - name: Resolve version and tag
         id: version
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Run the release workflow on main, not $GITHUB_REF_NAME."
+              exit 1
+            fi
+            version="${INPUT_VERSION#v}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must look like 1.2.3, got '$version'."
+            exit 1
+          fi
+          tag="v$version"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            echo "::error::Tag $tag already exists. Pick a higher version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Test
         run: dotnet test farmora-tray.slnx --configuration Release -p:SelfContained=false
@@ -47,6 +80,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
           REPO_URL: https://github.com/${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -67,5 +101,5 @@ jobs:
               --shortcuts StartMenuRoot -o releases
 
             vpk upload github --repoUrl "$REPO_URL" --token "$GH_TOKEN" --channel "$rid" -o releases \
-              --tag "$GITHUB_REF_NAME" --releaseName "Farmora Tray $VERSION" --publish --merge
+              --tag "$TAG" --targetCommitish "$GITHUB_SHA" --releaseName "Farmora Tray $VERSION" --publish --merge
           done
