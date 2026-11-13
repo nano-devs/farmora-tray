@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    The tray project is a Windows desktop executable, so this project compiles the
+    settings types directly. They do not use WinForms.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\FarmoraTray\Services\ConfigStore.cs" Link="ConfigStore.cs" />
+    <Compile Include="..\..\src\FarmoraTray\Models\TrayConfig.cs" Link="TrayConfig.cs" />
+    <Compile Include="..\..\src\FarmoraTray\Models\PrintRequests.cs" Link="PrintRequests.cs" />
+  </ItemGroup>
+
+</Project>

@@ -70,6 +70,11 @@ internal static class Program
 
         var app = builder.Build();
 
+        foreach (var warning in configStore.StartupWarnings)
+        {
+            app.Logger.LogWarning("{Warning}", warning);
+        }
+
         if (configStore.ApiKeyWasGenerated)
         {
             app.Logger.LogInformation(
