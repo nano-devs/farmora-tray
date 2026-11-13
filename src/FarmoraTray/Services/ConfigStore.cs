@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using FarmoraTray.Models;
 
@@ -14,20 +16,41 @@ public sealed class ConfigStore
     };
 
     private readonly object _gate = new();
+    private readonly string _directory;
     private readonly string _configPath;
+    private readonly string _backupPath;
+    private readonly List<string> _startupWarnings = new();
     private TrayConfig _current = new();
     private bool _apiKeyWasGenerated;
 
     public ConfigStore()
-    {
-        var dir = Path.Combine(
+        : this(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FarmoraTray");
-        Directory.CreateDirectory(dir);
-        _configPath = Path.Combine(dir, "config.json");
+            "FarmoraTray"))
+    {
+    }
+
+    public ConfigStore(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        _directory = directory;
+        Directory.CreateDirectory(_directory);
+        _configPath = Path.Combine(_directory, "config.json");
+        _backupPath = Path.Combine(_directory, "config.json.bak");
     }
 
     public string ConfigPath => _configPath;
+
+    public IReadOnlyList<string> StartupWarnings
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _startupWarnings.ToArray();
+            }
+        }
+    }
 
     public TrayConfig Current
     {
@@ -46,16 +69,55 @@ public sealed class ConfigStore
     {
         lock (_gate)
         {
-            if (File.Exists(_configPath))
+            _startupWarnings.Clear();
+
+            var main = ReadConfig(_configPath);
+            if (main.IsValid)
             {
-                var json = File.ReadAllText(_configPath);
-                var loaded = JsonSerializer.Deserialize<TrayConfig>(json, JsonOptions) ?? new TrayConfig();
-                MigrateLegacyPrinters(loaded, json);
-                Normalize(loaded);
-                _current = loaded;
+                _current = main.Config!;
                 _apiKeyWasGenerated = false;
-                PersistUnlocked(); // rewrite in simplified shape if legacy keys were present
+                // Rewrite only when legacy printer keys or normalization changed the file.
+                var rewritten = JsonSerializer.Serialize(_current, JsonOptions);
+                if (!JsonTextEquals(main.RawJson!, rewritten))
+                {
+                    PersistUnlocked();
+                }
+
                 return;
+            }
+
+            var backup = ReadConfig(_backupPath);
+            string? quarantined = null;
+            if (main.Exists)
+            {
+                quarantined = QuarantineDamagedMain();
+            }
+
+            if (backup.IsValid)
+            {
+                _current = backup.Config!;
+                _apiKeyWasGenerated = false;
+                if (main.Exists)
+                {
+                    Warn(
+                        $"Could not read saved settings at '{_configPath}' ({main.Reason}). " +
+                        $"Restored the last good copy from '{_backupPath}'. " +
+                        $"The damaged file was moved to '{quarantined}'.");
+                }
+                else
+                {
+                    Warn(
+                        $"Saved settings file '{_configPath}' is missing. " +
+                        $"Restored the last good copy from '{_backupPath}'.");
+                }
+
+                PersistUnlocked();
+                return;
+            }
+
+            if (main.Exists || backup.Exists)
+            {
+                Warn(DescribeUnusable(main, backup, quarantined));
             }
 
             _current = new TrayConfig
@@ -114,8 +176,8 @@ public sealed class ConfigStore
             return false;
         }
 
-        var providedBytes = System.Text.Encoding.UTF8.GetBytes(provided);
-        var expectedBytes = System.Text.Encoding.UTF8.GetBytes(expected);
+        var providedBytes = Encoding.UTF8.GetBytes(provided);
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
         if (providedBytes.Length != expectedBytes.Length)
         {
             return false;
@@ -144,7 +206,167 @@ public sealed class ConfigStore
     private void PersistUnlocked()
     {
         var json = JsonSerializer.Serialize(_current, JsonOptions);
-        File.WriteAllText(_configPath, json);
+        var tempPath = Path.Combine(_directory, $"config.json.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(
+                tempPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                4096,
+                FileOptions.None))
+            {
+                var bytes = Encoding.UTF8.GetBytes(json);
+                stream.Write(bytes);
+                stream.Flush(true);
+            }
+
+            if (File.Exists(_configPath))
+            {
+                File.Replace(tempPath, _configPath, _backupPath);
+            }
+            else
+            {
+                File.Move(tempPath, _configPath);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+    }
+
+    private ConfigSnapshot ReadConfig(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return new ConfigSnapshot(false, false, null, null, "the file is missing");
+        }
+
+        string json;
+        try
+        {
+            json = File.ReadAllText(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new ConfigSnapshot(true, false, null, null, ex.Message);
+        }
+
+        if (json.Length == 0)
+        {
+            return new ConfigSnapshot(true, false, null, null, "the file is empty");
+        }
+
+        if (IsOnlyNullBytes(json))
+        {
+            return new ConfigSnapshot(true, false, null, null, "the file contains only null bytes");
+        }
+
+        try
+        {
+            var loaded = JsonSerializer.Deserialize<TrayConfig>(json, JsonOptions);
+            if (loaded is null)
+            {
+                return new ConfigSnapshot(true, false, null, null, "the file deserialized to null");
+            }
+
+            MigrateLegacyPrinters(loaded, json);
+            Normalize(loaded);
+            return new ConfigSnapshot(true, true, loaded, json, "");
+        }
+        catch (JsonException ex)
+        {
+            return new ConfigSnapshot(true, false, null, null, ex.Message);
+        }
+    }
+
+    private string QuarantineDamagedMain()
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var candidate = Path.Combine(_directory, $"config.corrupt-{stamp}.json");
+        var suffix = 2;
+        while (File.Exists(candidate))
+        {
+            candidate = Path.Combine(_directory, $"config.corrupt-{stamp}-{suffix}.json");
+            suffix++;
+        }
+
+        File.Move(_configPath, candidate);
+        return candidate;
+    }
+
+    private string DescribeUnusable(ConfigSnapshot main, ConfigSnapshot backup, string? quarantined)
+    {
+        if (main.Exists && backup.Exists)
+        {
+            var moved = quarantined is null
+                ? ""
+                : $" Moved the damaged file to '{quarantined}'.";
+            return
+                $"Could not read saved settings at '{_configPath}' ({main.Reason}). " +
+                $"The backup '{_backupPath}' could not be used ({backup.Reason})." +
+                moved +
+                " Started with default settings.";
+        }
+
+        if (main.Exists)
+        {
+            var moved = quarantined is null
+                ? ""
+                : $" Moved the damaged file to '{quarantined}'.";
+            return
+                $"Could not read saved settings at '{_configPath}' ({main.Reason}). " +
+                "No backup was found." +
+                moved +
+                " Started with default settings.";
+        }
+
+        return
+            $"Saved settings file '{_configPath}' is missing. " +
+            $"The backup '{_backupPath}' could not be used ({backup.Reason}). " +
+            "Started with default settings.";
+    }
+
+    private void Warn(string message)
+    {
+        _startupWarnings.Add(message);
+    }
+
+    private static bool JsonTextEquals(string left, string right)
+    {
+        return string.Equals(NormalizeJsonText(left), NormalizeJsonText(right), StringComparison.Ordinal);
+    }
+
+    private static string NormalizeJsonText(string json)
+    {
+        return json.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+    }
+
+    private static bool IsOnlyNullBytes(string json)
+    {
+        foreach (var ch in json)
+        {
+            if (ch != '\0')
+            {
+                return false;
+            }
+        }
+
+        return json.Length > 0;
     }
 
     private static void Normalize(TrayConfig config)
@@ -238,4 +460,11 @@ public sealed class ConfigStore
             Thermal = source.Printers.Thermal
         }
     };
+
+    private readonly record struct ConfigSnapshot(
+        bool Exists,
+        bool IsValid,
+        TrayConfig? Config,
+        string? RawJson,
+        string Reason);
 }
