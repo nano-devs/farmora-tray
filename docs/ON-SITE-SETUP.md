@@ -32,7 +32,7 @@ Releases are built by GitHub Actions when a `v*` tag is pushed (see the README).
 | Arch | x64 or x86. Match the installer to **System type**. This build does not support ARM. |
 | .NET | Not required on the PC when you use the self-contained publish above. |
 | Printers | Installed in Windows with working drivers. Print a Windows test page first. |
-| PDF app | **Required for dot matrix printing.** Install **Adobe Acrobat Reader** (free) and set it as the default app for `.pdf`. Microsoft Edge alone is not enough. See [2.0](#20-install-a-pdf-app-that-can-print-silently). Thermal-only PCs do not need it. |
+| PDF app | **Only for dot matrix printing from PDF.** Install **Adobe Acrobat Reader** (free) and set it as the default app for `.pdf`; Microsoft Edge alone is not enough. See [2.0](#20-install-a-pdf-app-that-can-print-silently). Not needed when Farmora sends ESC/P to the dot matrix (no PDF app involved), nor on thermal-only PCs. |
 | User | The cashier Windows account that will use Farmora in the browser. The tray runs in that user session. |
 | Browser | Chrome / Edge. Use the same browser staff use daily. |
 | Network | The PC can open the Farmora web app. The tray serves only localhost, and checks `github.com` / `api.github.com` for updates every few hours. |
@@ -52,7 +52,9 @@ Do this **once per client PC**.
 
 ### 2.0 Install a PDF app that can print silently
 
-Farmora Tray does not render PDFs itself. For `/dotmatrix` it saves the PDF to a temp file and asks Windows to print it with the **printto** shell verb. Whatever app is the default for `.pdf` opens the file and does the printing. That app must support `printto`.
+> Skip this section if this site's Farmora version prints dot matrix as **ESC/P**: those jobs go straight to the printer and need no PDF app.
+
+Farmora Tray does not render PDFs itself. For a PDF sent to `/dotmatrix` it saves the PDF to a temp file and asks Windows to print it with the **printto** shell verb. Whatever app is the default for `.pdf` opens the file and does the printing. That app must support `printto`.
 
 | PDF app | Works? |
 |---------|--------|

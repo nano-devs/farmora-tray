@@ -9,7 +9,7 @@ public static class PrintApi
         var group = endpoints.MapGroup("/");
 
         group.MapPost("/dotmatrix", (HttpRequest request, PrintOrchestrator print, CancellationToken ct) =>
-            HandlePdfAsync(request, print, ct));
+            HandleDotMatrixAsync(request, print, ct));
 
         group.MapPost("/thermal", (HttpRequest request, PrintOrchestrator print, CancellationToken ct) =>
             HandleRawAsync(request, print, ct));
@@ -17,31 +17,31 @@ public static class PrintApi
         return group;
     }
 
-    private static async Task<IResult> HandlePdfAsync(
+    /// <summary>
+    /// Dot matrix accepts PDF (printed via the PDF handler, as before) or raw ESC/P bytes
+    /// (sent straight to the printer). See <see cref="DotMatrixPayload"/> for how they are told apart.
+    /// </summary>
+    private static async Task<IResult> HandleDotMatrixAsync(
         HttpRequest request,
         PrintOrchestrator print,
         CancellationToken cancellationToken)
     {
-        byte[]? pdf;
+        using var buffer = new MemoryStream();
+        await request.Body.CopyToAsync(buffer, cancellationToken);
+
+        DotMatrixPayload.Result payload;
         try
         {
-            pdf = await PrintPayloadReader.ReadPdfAsync(request, cancellationToken);
+            payload = DotMatrixPayload.Parse(request.ContentType, buffer.ToArray());
         }
-        catch (FormatException)
+        catch (InvalidDotMatrixPayloadException ex)
         {
-            return Results.BadRequest(new { title = "Invalid payload", detail = "pdfBase64 is not valid Base64." });
+            return Results.BadRequest(new { title = "Invalid payload", detail = ex.Message });
         }
 
-        if (pdf is null || pdf.Length == 0)
-        {
-            return Results.BadRequest(new
-            {
-                title = "Invalid payload",
-                detail = "Send application/pdf bytes or JSON { \"pdfBase64\": \"...\" }."
-            });
-        }
-
-        return Execute(() => print.PrintPdf(pdf));
+        return payload.Format == DotMatrixFormat.Pdf
+            ? Execute(() => print.PrintPdf(payload.Bytes))
+            : Execute(() => print.PrintDotMatrixRaw(payload.Bytes));
     }
 
     private static async Task<IResult> HandleRawAsync(
