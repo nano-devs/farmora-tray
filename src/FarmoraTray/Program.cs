@@ -12,7 +12,16 @@ internal static class Program
     {
         // Must run first: Velopack invokes the exe with hook arguments during install,
         // update and uninstall, and Run() handles and exits those without starting the tray.
-        VelopackApp.Build().Run();
+        // The hooks are short-lived and must not throw, or Setup.exe reports a failure.
+        VelopackApp.Build()
+            .OnAfterInstallFastCallback(_ => TryHook(() => AutoStart.OnInstalled(CurrentExePath())))
+            .OnAfterUpdateFastCallback(_ => TryHook(() => AutoStart.OnUpdated(CurrentExePath())))
+            .OnBeforeUninstallFastCallback(_ => TryHook(AutoStart.OnUninstalling))
+            .Run();
+
+        // Started from the Run key at logon. Keep it out of ASP.NET's command-line config.
+        var autoStarted = args.Contains(AutoStart.Argument, StringComparer.OrdinalIgnoreCase);
+        args = args.Where(a => !string.Equals(a, AutoStart.Argument, StringComparison.OrdinalIgnoreCase)).ToArray();
 
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
@@ -20,7 +29,7 @@ internal static class Program
 
         try
         {
-            Run(args);
+            Run(args, autoStarted);
         }
         catch (Exception ex)
         {
@@ -32,11 +41,32 @@ internal static class Program
         }
     }
 
-    private static void Run(string[] args)
+    private static string CurrentExePath() =>
+        Environment.ProcessPath ?? throw new InvalidOperationException("Unknown exe path.");
+
+    private static void TryHook(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch
+        {
+            // Auto-start is a convenience; never fail install, update or uninstall over it.
+        }
+    }
+
+    private static void Run(string[] args, bool autoStarted)
     {
         using var mutex = new Mutex(true, @"Local\FarmoraTray", out var createdNew);
         if (!createdNew)
         {
+            // An old Task Scheduler task or Startup shortcut may start a second copy at logon.
+            if (autoStarted)
+            {
+                return;
+            }
+
             MessageBox.Show(
                 "Farmora Tray is already running. Look for the icon in the system tray.",
                 "Farmora Tray",
