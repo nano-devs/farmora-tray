@@ -148,16 +148,24 @@ Content-Type: application/json
 
 | Method | Path | Body | Config key |
 |--------|------|------|------------|
-| `POST` | `/dotmatrix` | PDF | `printers.dotMatrix` |
+| `POST` | `/dotmatrix` | ESC/P raw **or** PDF | `printers.dotMatrix` |
 | `POST` | `/thermal` | ESC/POS raw | `printers.thermal` |
 
-Use `/dotmatrix` for B2B SO, sales return, PO, purchase return (any form PDF).  
+Use `/dotmatrix` for B2B SO, sales return, PO, purchase return.  
 Use `/thermal` for retail/thermal receipts.
 
-PDF endpoint accepts either:
+`/dotmatrix` accepts two formats and tells them apart by the bytes, not the content type:
 
-- `Content-Type: application/pdf` with raw PDF bytes, or
-- `Content-Type: application/json` with `{ "pdfBase64": "..." }`
+- **ESC/P (recommended):** printer-ready bytes from the backend's `print.escp` / `print/escp` routes. Sent straight to the Windows spooler like thermal jobs, printed in the printer's own fonts. **No PDF app needed.**
+- **PDF:** any body that starts with `%PDF-`. Printed via the PDF app's `printto` verb, as before.
+
+Send it as any of:
+
+- `Content-Type: application/octet-stream` with raw ESC/P bytes,
+- `Content-Type: application/pdf` with raw PDF bytes (rejected with `400` if it isn't a PDF), or
+- `Content-Type: application/json` with `{ "rawBase64": "..." }` or `{ "pdfBase64": "..." }` (exactly one).
+
+A body that starts with `%PDF-` is always printed as a PDF, even inside `rawBase64`, so a PDF is never raw-printed as pages of garbage.
 
 Thermal accepts either:
 
@@ -246,7 +254,7 @@ async function printDotMatrixPdf(pdfBytes) {
 
 Farmora Tray does **not** generate invoice layouts; it only routes ready-to-print payloads to the configured Windows printers.
 
-PDF jobs use the Windows **printto** shell verb, so the default `.pdf` app on the PC must support it. Install **Adobe Acrobat Reader** and make it the default PDF app. Microsoft Edge usually does not register `printto` and dot matrix printing fails with `503`. Thermal jobs send raw ESC/POS bytes through the Windows spooler.
+ESC/P dot matrix jobs and thermal ESC/POS jobs send raw bytes through the Windows spooler and need nothing else installed. PDF dot matrix jobs use the Windows **printto** shell verb, so the default `.pdf` app on the PC must support it: install **Adobe Acrobat Reader** and make it the default PDF app. Microsoft Edge usually does not register `printto` and PDF printing fails with `503`.
 
 ## Smoke test
 

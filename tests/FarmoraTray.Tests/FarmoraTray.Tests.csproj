@@ -26,6 +26,7 @@
     <Compile Include="..\..\src\FarmoraTray\Models\TrayConfig.cs" Link="TrayConfig.cs" />
     <Compile Include="..\..\src\FarmoraTray\Models\PrintRequests.cs" Link="PrintRequests.cs" />
     <Compile Include="..\..\src\FarmoraTray\Services\PrintActivity.cs" Link="PrintActivity.cs" />
+    <Compile Include="..\..\src\FarmoraTray\Services\DotMatrixPayload.cs" Link="DotMatrixPayload.cs" />
   </ItemGroup>
 
 </Project>

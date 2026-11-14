@@ -26,6 +26,16 @@ public sealed class PrintOrchestrator
         }
     }
 
+    /// <summary>Sends printer-ready bytes (Epson ESC/P) straight to the dot matrix printer.</summary>
+    public void PrintDotMatrixRaw(byte[] rawBytes)
+    {
+        var printer = ResolvePrinter(PrintMode.DotMatrix);
+        using (_activity.Begin())
+        {
+            _raw.Print(printer, rawBytes, "dotmatrix");
+        }
+    }
+
     public void PrintRaw(byte[] rawBytes)
     {
         var printer = ResolvePrinter(PrintMode.Thermal);

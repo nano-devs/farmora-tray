@@ -311,11 +311,13 @@ Mirror for ESC/POS with inverted B2B/B2C checks.
 
 | Document | Backend GET | Tray POST |
 |----------|-------------|-----------|
-| SO B2B | `/api/saleOrders/{id}/print.pdf` | `/dotmatrix` |
-| SO B2C | `/api/saleOrders/{id}/print.escpos` | `/thermal` |
-| Sales return | `/api/salesReturn/{id}/print.pdf` | `/dotmatrix` |
-| Purchase order | `/api/purchaseOrders/{id}/print.pdf` | `/dotmatrix` |
-| Purchase return | `/api/purchaseReturns/{id}/print.pdf` | `/dotmatrix` |
+| SO B2B | `/api/saleOrders/{id}/print/escp` (PDF: `print/pdf`) | `/dotmatrix` |
+| SO B2C | `/api/saleOrders/{id}/print/escpos` | `/thermal` |
+| Sales return | `/api/salesReturn/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+| Purchase order | `/api/purchaseOrders/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+| Purchase return | `/api/purchaseReturns/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+
+`/dotmatrix` accepts both ESC/P and PDF (it checks for `%PDF-`). ESC/P is preferred for printing; PDF stays for view / download and for older frontends.
 
 Update [FRONTEND.md](./FRONTEND.md) examples if route names differ when implementing — **prefer the paths in this table**.
 

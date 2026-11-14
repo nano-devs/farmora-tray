@@ -162,11 +162,11 @@ Partial updates are supported: omit fields you do not change. Sending `""` for a
 
 | Document | Print mode | Tray endpoint | Payload |
 |----------|------------|---------------|---------|
-| Sale order B2B (grosir) | Dot matrix | `POST /dotmatrix` | PDF |
+| Sale order B2B (grosir) | Dot matrix | `POST /dotmatrix` | ESC/P bytes (or PDF) |
 | Sale order B2C (retail) | Thermal | `POST /thermal` | ESC/POS bytes |
-| Sales return | Dot matrix | `POST /dotmatrix` | PDF |
-| Purchase order | Dot matrix | `POST /dotmatrix` | PDF |
-| Purchase return | Dot matrix | `POST /dotmatrix` | PDF |
+| Sales return | Dot matrix | `POST /dotmatrix` | ESC/P bytes (or PDF) |
+| Purchase order | Dot matrix | `POST /dotmatrix` | ESC/P bytes (or PDF) |
+| Purchase return | Dot matrix | `POST /dotmatrix` | ESC/P bytes (or PDF) |
 
 **Recommended sequence**
 
@@ -183,6 +183,18 @@ Partial updates are supported: omit fields you do not change. Sending `""` for a
 
 **Dot matrix**
 
+Recommended: ESC/P bytes from the backend, printed raw (no PDF app needed on the PC).
+
+```http
+POST /dotmatrix
+X-Farmora-Tray-Key: <key>
+Content-Type: application/octet-stream
+
+<raw ESC/P bytes>
+```
+
+Still supported: PDF, printed through the PC's PDF app.
+
 ```http
 POST /dotmatrix
 X-Farmora-Tray-Key: <key>
@@ -191,11 +203,14 @@ Content-Type: application/pdf
 <raw PDF bytes>
 ```
 
-Alternative JSON body:
+Alternative JSON body (exactly one field):
 
 ```json
-{ "pdfBase64": "<base64>" }
+{ "rawBase64": "<base64 ESC/P>" }
+{ "pdfBase64": "<base64 PDF>" }
 ```
+
+The tray decides by the bytes: a body starting with `%PDF-` is printed as PDF, anything else raw. A body sent as `application/pdf` or `pdfBase64` that isn't a PDF gets `400`.
 
 **Thermal**
 
@@ -313,7 +328,7 @@ Base: `http://127.0.0.1:9123`
 | `GET` | `/printers` | Key | — | `{ printers: string[] }` |
 | `GET` | `/config` | Key | — | `{ allowedOrigin, port, printers }` |
 | `PUT` | `/config` | Key | `{ allowedOrigin?, printers? }` | same as GET |
-| `POST` | `/dotmatrix` | Key | PDF bytes or `{ pdfBase64 }` | `204` |
+| `POST` | `/dotmatrix` | Key | ESC/P bytes, PDF bytes, `{ rawBase64 }` or `{ pdfBase64 }` | `204` |
 | `POST` | `/thermal` | Key | raw bytes or `{ rawBase64 }` | `204` |
 
 CORS: tray allows the configured `allowedOrigin`. Preflight `OPTIONS` is permitted without API key.
@@ -362,7 +377,7 @@ For Farmora (multi-branch POS, tax-ish forms, ~24 PCs, dot matrix + thermal), ba
 3. **Optional later**  
    - Backend includes print URLs in the submit response to avoid an extra round-trip  
 
-Thermal tip: prefer **server-built ESC/POS** (not “PDF to thermal”). Dot matrix tip: prefer **server PDF** sized for the continuous form, then tray `/dotmatrix`.
+Thermal tip: prefer **server-built ESC/POS** (not “PDF to thermal”). Dot matrix tip: prefer **server-built ESC/P** (`print.escp`): faster, sharper, better carbon copies, and no PDF app on the PC. Keep the PDF routes for view / download.
 
 ---
 
@@ -371,9 +386,9 @@ Thermal tip: prefer **server-built ESC/POS** (not “PDF to thermal”). Dot mat
 - [ ] `farmoraTray` client module (`health`, `printers`, `config`, `printDotMatrix`, `printThermal`)  
 - [ ] Settings page: API key + two printer dropdowns + save `allowedOrigin`  
 - [ ] Global tray status indicator  
-- [ ] After B2B SO success → backend PDF → `POST /dotmatrix`  
+- [ ] After B2B SO success → backend ESC/P → `POST /dotmatrix`  
 - [ ] After B2C SO success → backend ESC/POS → `POST /thermal`  
-- [ ] After sales return / PO / purchase return → PDF → `POST /dotmatrix`  
+- [ ] After sales return / PO / purchase return → ESC/P → `POST /dotmatrix`  
 - [ ] Reprint actions on document detail  
 - [ ] Graceful degradation when tray offline (transaction still saved)  
 - [ ] i18n / copy for 401, 403, 404, 503, offline  
@@ -386,10 +401,12 @@ Implement in **farmora-backend** per **[BACKEND-PRINT.md](./BACKEND-PRINT.md)**.
 
 | Document | Backend GET | Tray POST |
 |----------|-------------|-----------|
-| SO B2B | `/api/saleOrders/{id}/print.pdf` | `/dotmatrix` |
-| SO B2C | `/api/saleOrders/{id}/print.escpos` | `/thermal` |
-| Sales return | `/api/salesReturn/{id}/print.pdf` | `/dotmatrix` |
-| Purchase order | `/api/purchaseOrders/{id}/print.pdf` | `/dotmatrix` |
-| Purchase return | `/api/purchaseReturns/{id}/print.pdf` | `/dotmatrix` |
+| SO B2B | `/api/saleOrders/{id}/print/escp` (PDF: `print/pdf`) | `/dotmatrix` |
+| SO B2C | `/api/saleOrders/{id}/print/escpos` | `/thermal` |
+| Sales return | `/api/salesReturn/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+| Purchase order | `/api/purchaseOrders/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+| Purchase return | `/api/purchaseReturns/{id}/print.escp` (PDF: `print.pdf`) | `/dotmatrix` |
+
+The ESC/P routes take optional `leftMargin` (0–20 characters, default 2) and `letterQuality` (default `false`).
 
 Until those exist, FE can still ship the **settings + tray client** and test with a static sample PDF / sample ESC/POS file.
