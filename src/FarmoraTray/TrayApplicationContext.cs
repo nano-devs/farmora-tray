@@ -10,6 +10,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly UpdateService _updates;
     private readonly SynchronizationContext _uiContext;
     private readonly ToolStripMenuItem _checkUpdatesItem;
+    private readonly ToolStripMenuItem _autoStartItem;
     private readonly ContextMenuStrip _menu;
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _icon;
@@ -35,6 +36,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Enabled = updates.IsInstalled
         };
         _menu.Items.Add(_checkUpdatesItem);
+        // Only for Setup.exe installs: a dotnet run / zip path would go stale.
+        _autoStartItem = new ToolStripMenuItem("Start with Windows", null, OnAutoStartClicked)
+        {
+            Enabled = updates.IsInstalled
+        };
+        _menu.Items.Add(_autoStartItem);
+        _menu.Opening += (_, _) => RefreshAutoStartItem();
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, OnExitClicked);
 
@@ -86,6 +94,47 @@ internal sealed class TrayApplicationContext : ApplicationContext
             FileName = folder,
             UseShellExecute = true
         });
+    }
+
+    private void RefreshAutoStartItem()
+    {
+        try
+        {
+            _autoStartItem.Checked = AutoStart.IsEnabled();
+        }
+        catch
+        {
+            _autoStartItem.Checked = false;
+        }
+    }
+
+    private void OnAutoStartClicked(object? sender, EventArgs e)
+    {
+        var path = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        var enable = !_autoStartItem.Checked;
+        try
+        {
+            AutoStart.SetEnabled(enable, path);
+            _autoStartItem.Checked = enable;
+            _notifyIcon.ShowBalloonTip(
+                3000,
+                "Farmora Tray",
+                enable ? "Farmora Tray will start when you sign in to Windows." : "Farmora Tray will no longer start with Windows.",
+                ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Could not change the startup setting.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "Farmora Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     private async void OnCheckUpdatesClicked(object? sender, EventArgs e)

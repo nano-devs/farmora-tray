@@ -37,7 +37,7 @@ Releases are built by GitHub Actions when a `v*` tag is pushed (see the README).
 | Browser | Chrome / Edge. Use the same browser staff use daily. |
 | Network | The PC can open the Farmora web app. The tray serves only localhost, and checks `github.com` / `api.github.com` for updates every few hours. |
 | Disk and memory | Light. About 200 MB free under `%LocalAppData%` for the app, one cached update and config. |
-| Auto-start | Startup folder or Task Scheduler at that user's logon. Not a Windows Service. |
+| Auto-start | Added by `Setup.exe` to that user's startup apps (section 3). Not a Windows Service. |
 
 Typical printers per PC:
 
@@ -94,7 +94,7 @@ Acrobat Reader may leave a small Reader window open after a print. That is norma
 4. If SmartScreen says "Windows protected your PC", choose **More info → Run anyway**. The installer is not code-signed yet.
 5. Do **not** move or copy files out of the install folder. Updates replace `current\`. Config lives elsewhere (`%LocalAppData%\FarmoraTray\config.json`), so reinstalling or uninstalling keeps the API key and printer map.
 
-**PC that already has the old zip install** (`C:\Program Files\FarmoraTray` or `C:\FarmoraTray`): right-click the tray icon → **Exit**, delete the old scheduled task (section 3) and the old folder, then run `Setup.exe` as above and recreate the task with the new path. The API key and printers carry over.
+**PC that already has the old zip install** (`C:\Program Files\FarmoraTray` or `C:\FarmoraTray`): right-click the tray icon → **Exit**, delete the old scheduled task or Startup-folder shortcut and the old folder, then run `Setup.exe` as above. Setup adds the new startup entry itself (section 3). The API key and printers carry over.
 
 ### 2.2 First run (get API key)
 
@@ -134,46 +134,28 @@ If this fails: tray not running, or wrong port in `config.json`.
 
 Cashiers must not have to start it manually every morning.
 
-Do **not** install this tray build as a Windows Service. A service runs in session 0 and cannot show a tray icon. A Windows Service and an installer can come later. For this build, start `FarmoraTray.exe` at user logon only (Task Scheduler or the Startup folder).
+`Setup.exe` does this for you. It adds **Farmora Tray** to the cashier's startup apps (per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry pointing at `%LocalAppData%\FarmoraTrayApp\current\FarmoraTray.exe`). That path stays the same after updates. Uninstalling removes the entry.
 
-### Recommended: Task Scheduler
+Do **not** install this tray as a Windows Service. A service runs in session 0 and cannot show a tray icon.
 
-1. Open **Task Scheduler** → **Create Task…** (not Basic Task).
-2. **General**
-   - Name: `FarmoraTray`
-   - Select **Run only when user is logged on**
-   - Configure for: Windows 10/11
-3. **Triggers** → **New…**
-   - Begin the task: **At log on**
-   - User: the cashier Windows account
-4. **Actions** → **New…**
-   - Action: **Start a program**
-   - Program/script: `%LocalAppData%\FarmoraTrayApp\current\FarmoraTray.exe`  
-     (Task Scheduler may not expand `%LocalAppData%`; if the task fails, enter the full path, e.g. `C:\Users\<cashier>\AppData\Local\FarmoraTrayApp\current\FarmoraTray.exe`)
-   - This path stays the same after updates.
-5. **Conditions**
-   - Uncheck **Start the task only if the computer is on AC power** (laptops)
-6. **Settings**
-   - Allow task to be run on demand
-   - **If the task fails, restart every** `1 minute`, attempt `3` times
-   - Uncheck **Stop the task if it runs longer than**
-7. OK → enter Windows password if prompted.
+### Check it
 
-### Quick check after creating the task
-
-1. Sign out and sign back in (or run the task manually: Task Scheduler → FarmoraTray → Run).
-2. Confirm:
+1. Right-click the tray icon: **Start with Windows** is ticked.
+2. Task Manager → **Startup apps**: **FarmoraTray** shows **Enabled**.
+3. Sign out and back in, then:
 
    ```powershell
    Invoke-RestMethod http://127.0.0.1:9123/health
    ```
 
-### Alternative (faster, less robust): Startup folder
+### Turning it off or on
 
-1. `Win+R` → `shell:startup`
-2. Copy the **Farmora Tray** shortcut from the Start menu into that folder
+- Tray menu → **Start with Windows** toggles it. Turning it off there is remembered across updates.
+- Disabling it in Task Manager → Startup apps also works. Ticking **Start with Windows** in the tray menu turns it back on.
 
-Prefer Task Scheduler for production PCs.
+### PCs set up before auto-start existed
+
+The first update to this version adds the startup entry. Then delete the old **FarmoraTray** task in Task Scheduler and any Farmora Tray shortcut in `shell:startup`. Leftovers do no harm (a second copy started at logon exits quietly), but one startup method is easier to support.
 
 ---
 
@@ -352,7 +334,7 @@ Copy one row per PC:
 | 4 | API key saved into Farmora FE on this PC | | [ ] |
 | 5 | `dotMatrix` / `thermal` mapped correctly | | [ ] |
 | 6 | `allowedOrigin` = production Farmora URL | | [ ] |
-| 7 | Task Scheduler logon task created | | [ ] |
+| 7 | Tray menu shows **Start with Windows** ticked; FarmoraTray is Enabled in Task Manager → Startup apps | | [ ] |
 | 8 | Farmora desktop icon opens the right browser profile, tray shows online | | [ ] |
 | 9 | `/health` OK after reboot | | [ ] |
 | 10 | Real document smoke print OK | | [ ] |
@@ -392,9 +374,9 @@ The old zip install (copy of `FarmoraTray.exe` in a folder) does **not** update 
 | `503` print failed | Driver / offline / no PDF handler | Windows test page. For dot matrix, make sure Acrobat Reader is the default `.pdf` app and the `printto` check in 2.0 returns `True` |
 | Dot matrix fails, thermal works | Default PDF app is Edge / a browser, or Windows reset the default after an update | Set Adobe Acrobat as default for `.pdf` again (2.0) |
 | Desktop icon opens Farmora but tray "not configured" | Icon opens a different browser or profile than where the key was saved | Recreate the icon (5.3) with the right browser and `--profile-directory`, or paste the key again in that profile |
-| Works then stops after reboot | No startup task / task under wrong user | Recreate Task Scheduler trigger for cashier user |
+| Works then stops after reboot | Startup entry off, or installed under another Windows user | Tray menu → tick **Start with Windows**; check Task Manager → Startup apps. Install with `Setup.exe` while signed in as the cashier |
 | Tray stays on an old version | No access to `github.com`, or old zip install | Right-click → **Check for updates**; a balloon says if the check failed. Allow `github.com`, `api.github.com` and `objects.githubusercontent.com` through the shop firewall. Zip installs: reinstall with `Setup.exe` (2.1) |
-| Startup task fails after moving to `Setup.exe` | Task still points to the old folder | Edit the task action to the new path (section 3) |
+| Old startup task fails after moving to `Setup.exe` | Task still points to the old folder | Delete the task; `Setup.exe` adds its own startup entry (section 3) |
 | Key lost after new Windows user | Config is per-user | Set up under the cashier account, or copy config carefully |
 
 ### Useful paths

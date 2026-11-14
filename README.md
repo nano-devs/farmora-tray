@@ -19,7 +19,7 @@ dotnet run
 
 On first start, Farmora Tray writes `%LocalAppData%\FarmoraTray\config.json` and shows a tray balloon that an API key was created. Right-click the tray icon and choose **Copy API key**. Paste that key into the Farmora frontend printer settings for this PC.
 
-Keep Farmora Tray running while cashiers use Farmora. On production PCs install it with the release `Setup.exe` and start it at user logon with Task Scheduler (see [docs/ON-SITE-SETUP.md](./docs/ON-SITE-SETUP.md)). Do not install it as a Windows Service: session 0 has no tray icon.
+Keep Farmora Tray running while cashiers use Farmora. On production PCs install it with the release `Setup.exe`, which also adds it to the user's startup apps (tray menu → **Start with Windows** toggles it; see [docs/ON-SITE-SETUP.md](./docs/ON-SITE-SETUP.md)). Do not install it as a Windows Service: session 0 has no tray icon.
 
 ## Releases and self-update
 
